@@ -36,6 +36,18 @@ export default function GeneratePage() {
   const [generatedMetadata, setGeneratedMetadata] = useState<any>(null);
   const [previouslyGenerated, setPreviouslyGenerated] = useState<GeneratedMural[]>([]);
   const [modalImage, setModalImage] = useState<GeneratedMural | null>(null);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  // Auto-dismiss notifications after 5 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // Load reference mural from URL param
   useEffect(() => {
@@ -92,13 +104,22 @@ export default function GeneratePage() {
       const data = await res.json();
       if (data.success) {
         setPrompt(data.analysis.suggestedPrompt);
-        alert('Prompt analyzed! You can edit it before generating.');
+        setNotification({
+          type: 'success',
+          message: 'Prompt analyzed successfully! You can edit it before generating.'
+        });
       } else {
-        alert('Failed to analyze: ' + (data.error || 'Unknown error'));
+        setNotification({
+          type: 'error',
+          message: 'Failed to analyze: ' + (data.error || 'Unknown error')
+        });
       }
     } catch (error) {
       console.error('Analysis failed:', error);
-      alert('Analysis failed. Check console.');
+      setNotification({
+        type: 'error',
+        message: 'Analysis failed. Please try again.'
+      });
     } finally {
       setAnalyzing(false);
     }
@@ -133,13 +154,22 @@ export default function GeneratePage() {
         });
         // Reload previously generated list
         loadPreviouslyGenerated();
-        alert('Mural generated successfully!\nSaved to: ' + data.generatedMural.localFilePath);
+        setNotification({
+          type: 'success',
+          message: 'Mural generated successfully!'
+        });
       } else {
-        alert('Generation failed: ' + (data.error || 'Unknown error'));
+        setNotification({
+          type: 'error',
+          message: 'Generation failed: ' + (data.error || 'Unknown error')
+        });
       }
     } catch (error) {
       console.error('Generation failed:', error);
-      alert('Generation failed. Check console.');
+      setNotification({
+        type: 'error',
+        message: 'Generation failed. Please try again.'
+      });
     } finally {
       setGenerating(false);
     }
@@ -165,6 +195,32 @@ export default function GeneratePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Notification Banner */}
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 max-w-md px-6 py-4 rounded-lg shadow-lg z-50 ${
+            notification.type === 'success'
+              ? 'bg-green-600 text-white'
+              : 'bg-red-600 text-white'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <span className="text-xl">
+              {notification.type === 'success' ? '✓' : '✕'}
+            </span>
+            <div className="flex-1">
+              <p className="font-medium">{notification.message}</p>
+            </div>
+            <button
+              onClick={() => setNotification(null)}
+              className="text-white hover:text-gray-200 transition"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-6">
         <Link href="/browse" className="text-blue-600 hover:underline">
           ← Back to Browse
