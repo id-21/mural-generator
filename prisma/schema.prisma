@@ -1,0 +1,55 @@
+// Prisma schema for Mural Generator
+// Local SQLite database - no SQL writing needed!
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./mural-generator.db"
+}
+
+// Reference murals from the local directory
+model ReferenceMural {
+  id              String   @id @default(uuid())
+  collectionName  String   // e.g., "aracne"
+  designName      String   // e.g., "daffodils"
+  colorVariant    String?  // e.g., "galaxy-azul-oscuro" (optional)
+  localFilePath   String   @unique // Full path to -design.jpg file
+  fileName        String   // Just the filename
+  metadata        String?  // JSON string for any extra data
+  importedAt      DateTime @default(now())
+
+  // Relation to generated murals
+  generatedMurals GeneratedMural[]
+
+  @@index([collectionName, designName])
+}
+
+// Generated murals
+model GeneratedMural {
+  id                String          @id @default(uuid())
+
+  // Reference to source inspiration
+  referenceMuralId  String
+  referenceMural    ReferenceMural  @relation(fields: [referenceMuralId], references: [id], onDelete: Cascade)
+
+  // Generation details
+  prompt            String          // The prompt used (AI-suggested or custom)
+  isCustomPrompt    Boolean         @default(false)
+
+  // Output file
+  localFilePath     String          // Full path to generated PNG
+  fileName          String          // e.g., "generated-2024-12-22-14-30-45-galaxy-azul-oscuro.png"
+
+  // Gemini API details
+  modelUsed         String?         // e.g., "gemini-pro-3"
+  generationParams  String?         // JSON string of generation parameters
+
+  // Timestamps
+  createdAt         DateTime        @default(now())
+
+  @@index([referenceMuralId])
+  @@index([createdAt])
+}
