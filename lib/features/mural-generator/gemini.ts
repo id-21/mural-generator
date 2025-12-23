@@ -11,6 +11,7 @@ import {
   ChatRefinementResponse,
 } from './prompts';
 import { PromptAnalysisResult } from './types';
+import fs from 'fs';
 
 // Singleton Gemini client
 let geminiClient: GoogleGenAI | null = null;
@@ -24,50 +25,6 @@ function getGeminiClient(): GoogleGenAI {
     geminiClient = new GoogleGenAI({ apiKey });
   }
   return geminiClient;
-}
-
-/**
- * Analyze reference mural and suggest a prompt
- */
-export async function analyzeReferenceMural(
-  imageBase64: string,
-  mimeType: string
-): Promise<PromptAnalysisResult> {
-  const ai = getGeminiClient();
-  const model = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
-
-  console.log(`Analyzing reference mural with model: ${model}`);
-
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      systemInstruction: ANALYZE_REFERENCE_SYSTEM_INSTRUCTION,
-      contents: [
-        { text: createAnalysisPrompt() },
-        {
-          inlineData: {
-            mimeType,
-            data: imageBase64,
-          },
-        },
-      ],
-    });
-
-    // Extract text response
-    const textResponse = response.text || '';
-
-    // Parse JSON response
-    const jsonMatch = textResponse.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from response');
-    }
-
-    const result: PromptAnalysisResult = JSON.parse(jsonMatch[0]);
-    return result;
-  } catch (error) {
-    console.error('Error analyzing reference mural:', error);
-    throw error;
-  }
 }
 
 /**
@@ -175,8 +132,8 @@ export async function refinePromptWithChat(
       }
     ];
 
-    // Use generateContent with history and structured output
-    const response = await ai.models.generateContent({
+    // 1. Define the request object explicitly
+    const requestPayload = {
       model,
       systemInstruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION,
       contents,
@@ -184,7 +141,32 @@ export async function refinePromptWithChat(
         responseMimeType: 'application/json',
         responseJsonSchema: zodToJsonSchema(chatRefinementSchema) as any,
       },
-    });
+    };
+
+    // // 2. Write the object to a JSON file (useful for debugging)
+    // try {
+    //   fs.writeFileSync(
+    //     'gemini_request_payload.json', 
+    //     JSON.stringify(requestPayload, null, 2) // 'null, 2' adds indentation for readability
+    //   );
+    //   console.log('Request payload saved to gemini_request_payload.json');
+    // } catch (error) {
+    //   console.error('Failed to save request payload:', error);
+    // }
+
+    // 3. Pass the variable to generateContent
+    const response = await ai.models.generateContent(requestPayload);
+
+    // // 4. Write the object to a JSON file (useful for debugging)
+    // try {
+    //   fs.writeFileSync(
+    //     'gemini_response.json', 
+    //     JSON.stringify(response, null, 2) // 'null, 2' adds indentation for readability
+    //   );
+    //   console.log('Request payload saved to gemini_response.json');
+    // } catch (error) {
+    //   console.error('Failed to save request payload:', error);
+    // }
 
     const jsonText = response.text || '';
     console.log('Chat response:', jsonText);
