@@ -1,0 +1,145 @@
+===========================================
+AI Analyze Prompt Pipeline Test
+Started: 12/23/2025, 12:03:36 PM
+===========================================
+[12:03:36.545] ============================================================
+[12:03:36.546] AI Analyze Prompt - Pipeline Test
+[12:03:36.546] ============================================================
+[12:03:36.546] 
+[12:03:36.546] 
+[12:03:36.546] [STEP 1] Environment Setup
+[12:03:36.546]   - Action: Loading .env.local file
+[12:03:36.546] ✓ Loaded .env.local file
+[12:03:36.546] ✓ GEMINI_API_KEY found
+[12:03:36.546]   - GEMINI_API_KEY: ****...mznA
+[12:03:36.546]   - GEMINI_CHAT_MODEL: gemini-2.5-flash
+[12:03:36.546] 
+[12:03:36.546] [STEP 2] Image Loading
+[12:03:36.546]   - Image path: /Users/ishan-aiworkspace/Documents/apps/mural-generator/tmp/trial-mural.png
+[12:03:36.549] ✓ Image exists: /Users/ishan-aiworkspace/Documents/apps/mural-generator/tmp/trial-mural.png
+[12:03:36.549]   - Action: Reading image file
+[12:03:36.549] ✓ Image loaded successfully
+[12:03:36.559] ✓ Image size: 846,895 bytes
+[12:03:36.559]   - Image size (bytes): 846895
+[12:03:36.559] ✓ MIME type: image/png
+[12:03:36.559]   - MIME type detected: image/png
+[12:03:36.559]   - Action: Converting to base64
+[12:03:36.559] ✓ Base64 conversion complete
+[12:03:36.559]   - Base64 length: 1129196
+[12:03:36.559] 
+[12:03:36.559] [STEP 3] Prepare Message
+[12:03:36.559] ✓ Message: "Please analyze this mural image..."
+[12:03:36.559]   - User message: Please analyze this mural image and create a detailed generation prompt for a NEW original mural inspired by its artistic characteristics.
+[12:03:36.559] 
+[12:03:36.559] [STEP 4] Call Gemini API
+[12:03:36.559] → Model: gemini-2.5-flash
+[12:03:36.559] → System Instruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION
+[12:03:36.559] → Contents: 1 user message with image
+[12:03:36.559] ⏳ Waiting for API response...
+[12:03:36.559]   - Function: refinePromptWithChat()
+[12:03:36.559]   - Parameters: {
+  "chatHistory": "[] (empty)",
+  "userMessage": "Please analyze this mural image and create a detai...",
+  "imageData": {
+    "mimeType": "image/png",
+    "data": "[BASE64_OMITTED]"
+  },
+  "currentPrompt": "undefined"
+}
+[12:03:36.559]   - Model: gemini-2.5-flash
+[12:03:36.559]   - System Instruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION (see prompts.ts:79-102)
+[12:03:36.559]   - Sending API request: 2025-12-23T06:33:36.559Z
+[12:03:53.749] 
+[12:03:53.749] ============================================================
+[12:03:53.749] ERROR
+[12:03:53.749] ============================================================
+[12:03:53.749] ✕ Test failed with error:
+[12:03:53.749] ✕ Message: [
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "conversationalResponse"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  },
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "refinedPrompt"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  },
+  {
+    "expected": "array",
+    "code": "invalid_type",
+    "path": [
+      "changesSummary"
+    ],
+    "message": "Invalid input: expected array, received undefined"
+  }
+]
+[12:03:53.749]   - Error message: [
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "conversationalResponse"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  },
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "refinedPrompt"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  },
+  {
+    "expected": "array",
+    "code": "invalid_type",
+    "path": [
+      "changesSummary"
+    ],
+    "message": "Invalid input: expected array, received undefined"
+  }
+]
+[12:03:53.749]   - Error stack: ZodError: [
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "conversationalResponse"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  },
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "refinedPrompt"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  },
+  {
+    "expected": "array",
+    "code": "invalid_type",
+    "path": [
+      "changesSummary"
+    ],
+    "message": "Invalid input: expected array, received undefined"
+  }
+]
+    at refinePromptWithChat (/Users/ishan-aiworkspace/Documents/apps/mural-generator/lib/features/mural-generator/gemini.ts:198:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async runTest (/Users/ishan-aiworkspace/Documents/apps/mural-generator/test-analyze-pipeline.ts:198:20)
+[12:03:53.749] ============================================================
+[12:03:53.749] 
+[12:03:53.749] ============================================================
+===========================================
+Test completed
+Completed: 12/23/2025, 12:03:53 PM
+Total duration: 17.21 seconds
+===========================================

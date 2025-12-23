@@ -1,4 +1,5 @@
 // Prompts for Gemini Pro 3
+import { z } from 'zod';
 
 /**
  * System instruction for analyzing reference murals
@@ -43,16 +44,19 @@ CRITICAL RULES:
 2. Draw inspiration from the artistic style, color approach, and visual characteristics
 3. Generate high-quality, professional artwork suitable for large-scale wall installation
 4. Maintain the artistic spirit and mood of the reference while presenting new subject matter
-5. Output should be in landscape orientation, ideal for mural application
+5. Output MUST be a seamless horizontally tileable pattern (the right edge must match the left edge)
 6. Do NOT add text, watermarks, or overlays
 
-Your generated mural should feel like it belongs to the same artistic family as the reference, but be completely original in composition and subject matter.`;
+Your generated mural should feel like it belongs to the same artistic family as the reference, but be completely original in composition, subject matter, and technical execution as a repeating pattern.`;
 
 /**
  * Default mural generation prompt template
  * This is your detailed prompt that you provided
  */
 export const DEFAULT_MURAL_PROMPT = `Using the provided mural design image as artistic inspiration, create a completely unique and original wall mural artwork that draws from its visual characteristics while presenting an entirely new composition.
+
+TECHNICAL CONSTRAINT - SEAMLESS TILING:
+The final image MUST be a seamless horizontally repeating pattern. The artwork should be designed so that if placed side-by-side with itself, the details on the far right edge perfectly connect and continue onto the far left edge. Avoid cutting off major focal elements at the edges unless they wrap around logically.
 
 VISUAL ELEMENTS TO ANALYZE:
 Carefully observe the subject matter and motifs present in the reference image - whether botanical elements (plants, flowers, foliage), fauna (birds, animals), human figures, architectural forms, abstract patterns, geometric shapes, objects, or text-based elements. Note how these elements are arranged, layered, and distributed across the composition to create visual rhythm and depth.
@@ -67,4 +71,43 @@ COMPOSITIONAL APPROACH TO OBSERVE:
 Note the spatial arrangement - whether symmetrical or asymmetrical, centered or distributed, with distinct foreground/middle/background layers or flat graphic treatment. Observe any repeating patterns, focal points, negative space usage, and overall visual balance.
 
 CREATIVE OUTPUT:
-Generate a new mural composition featuring different subjects in a similar artistic style and color approach. The scene should be horizontally oriented, suitable for large-scale wall installation. Create an entirely original arrangement and composition while maintaining the artistic spirit, color mood, and stylistic essence of the reference image. The final image should be in landscape orientation, ideal for mural application.`;
+Generate a new mural composition featuring different subjects in a similar artistic style and color approach. The scene should be horizontally oriented and technically seamless on the x-axis. Create an entirely original arrangement and composition while maintaining the artistic spirit, color mood, and stylistic essence of the reference image.`;
+
+/**
+ * System instruction for chat-based prompt refinement
+ */
+export const CHAT_REFINEMENT_SYSTEM_INSTRUCTION = `You are an AI assistant helping users create and refine mural generation prompts.
+
+You have two modes:
+
+**MODE 1: Initial Analysis (when user provides a reference image)**
+- Analyze the reference mural image thoroughly
+- Extract visual elements, artistic style, color palette, and composition
+- Generate a detailed, comprehensive prompt for creating a NEW original mural inspired by the reference
+- Provide the complete detailed prompt
+- Give a brief friendly explanation (1-3 sentences) of what you analyzed
+- Since this is initial analysis, there are no changes to summarize (use empty list)
+
+**MODE 2: Refinement (when user requests changes to existing prompt)**
+- The user will ask for changes (e.g., "make it more colorful", "add tropical plants")
+- Understand their intent and modify the relevant sections of the prompt
+- Return the COMPLETE updated prompt (not just the changes)
+- Provide a brief friendly explanation (1-3 sentences) of what you changed
+- List the specific changes you made
+
+**CRITICAL RULES:**
+- Always provide the complete detailed prompt, never null or incomplete
+- For casual conversation without changes, return the current prompt unchanged
+- Keep prompts detailed and suitable for mural generation
+- Be brief and friendly in your explanations`;
+
+/**
+ * Zod schema for chat refinement response
+ */
+export const chatRefinementSchema = z.object({
+  conversationalResponse: z.string().describe("A friendly response to the user explaining what was analyzed or what changes were made. Required field, never undefined."),
+  refinedPrompt: z.string().describe("The complete prompt for mural generation - ALWAYS return this, never null or undefined. Required field."),
+  changesSummary: z.array(z.string()).describe("List of specific changes made (empty array for initial analysis). Required field, never undefined.")
+});
+
+export type ChatRefinementResponse = z.infer<typeof chatRefinementSchema>;

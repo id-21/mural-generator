@@ -1,10 +1,14 @@
 // Gemini Pro 3 API integration
 import { GoogleGenAI } from '@google/genai';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import {
   ANALYZE_REFERENCE_SYSTEM_INSTRUCTION,
   createAnalysisPrompt,
   GENERATE_MURAL_SYSTEM_INSTRUCTION,
   DEFAULT_MURAL_PROMPT,
+  CHAT_REFINEMENT_SYSTEM_INSTRUCTION,
+  chatRefinementSchema,
+  ChatRefinementResponse,
 } from './prompts';
 import { PromptAnalysisResult } from './types';
 
@@ -30,7 +34,7 @@ export async function analyzeReferenceMural(
   mimeType: string
 ): Promise<PromptAnalysisResult> {
   const ai = getGeminiClient();
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-image';
+  const model = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
 
   console.log(`Analyzing reference mural with model: ${model}`);
 
@@ -123,6 +127,79 @@ export async function generateMural(
     return buffer;
   } catch (error) {
     console.error('Error generating mural:', error);
+    throw error;
+  }
+}
+
+/**
+ * Refine a prompt through chat conversation with AI
+ * Supports both initial image analysis and text-only refinement
+ */
+export async function refinePromptWithChat(
+  chatHistory: Array<{role: 'user' | 'model', parts: Array<{text?: string, inlineData?: any}>}>,
+  userMessage: string,
+  imageData?: {mimeType: string, data: string},
+  currentPrompt?: string
+): Promise<ChatRefinementResponse> {
+  const ai = getGeminiClient();
+  const model = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
+
+  console.log('Refining prompt with chat, message:', userMessage);
+  if (imageData) {
+    console.log('Including image in chat (initial analysis mode)');
+  }
+  if (currentPrompt) {
+    console.log('Including current prompt context');
+  }
+
+  try {
+    // Prepend current prompt to user message if provided (for refinement mode)
+    const messageText = currentPrompt
+      ? `Current prompt:\n${currentPrompt}\n\nUser request: ${userMessage}`
+      : userMessage;
+
+    // Build the conversation history including the new user message
+    const contents = [
+      ...chatHistory.map(msg => ({
+        role: msg.role,
+        parts: msg.parts
+      })),
+      {
+        role: 'user' as const,
+        parts: imageData
+          ? [
+              { text: messageText },
+              { inlineData: { mimeType: imageData.mimeType, data: imageData.data } }
+            ]
+          : [{ text: messageText }]
+      }
+    ];
+
+    // Use generateContent with history and structured output
+    const response = await ai.models.generateContent({
+      model,
+      systemInstruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION,
+      contents,
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: zodToJsonSchema(chatRefinementSchema) as any,
+      },
+    });
+
+    const jsonText = response.text || '';
+    console.log('Chat response:', jsonText);
+
+    // Validate that we have JSON content before parsing
+    if (!jsonText || jsonText.trim() === '') {
+      throw new Error('Empty response from AI model - no text content received');
+    }
+
+    // Parse and validate JSON response using Zod
+    const result = chatRefinementSchema.parse(JSON.parse(jsonText));
+
+    return result;
+  } catch (error) {
+    console.error('Error refining prompt with chat:', error);
     throw error;
   }
 }

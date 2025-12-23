@@ -2,6 +2,7 @@
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
+import { db } from '@/lib/db';
 
 /**
  * Ensure directory exists, create if not
@@ -91,4 +92,27 @@ export function getMimeType(fileName: string): string {
     default:
       return 'image/jpeg';
   }
+}
+
+/**
+ * Get reference mural image data for chat-based analysis
+ */
+export async function getReferenceMuralImage(referenceMuralId: string): Promise<{
+  mimeType: string;
+  base64Data: string;
+}> {
+  // Get reference mural from database
+  const referenceMural = await db.referenceMural.findUnique({
+    where: { id: referenceMuralId },
+  });
+
+  if (!referenceMural) {
+    throw new Error('Reference mural not found');
+  }
+
+  // Read image as base64
+  const base64Data = await readImageAsBase64(referenceMural.localFilePath);
+  const mimeType = getMimeType(referenceMural.fileName);
+
+  return { mimeType, base64Data };
 }

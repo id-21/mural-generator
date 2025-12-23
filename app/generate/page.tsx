@@ -40,6 +40,14 @@ export default function GeneratePage() {
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [showChatModal, setShowChatModal] = useState<boolean>(false);
+  const [chatHistory, setChatHistory] = useState<Array<{
+    role: 'user' | 'model',
+    parts: Array<{text: string}>,
+    imageId?: string
+  }>>([]);
+  const [chatInput, setChatInput] = useState<string>('');
+  const [chatLoading, setChatLoading] = useState<boolean>(false);
 
   // Auto-dismiss notifications after 5 seconds
   useEffect(() => {
@@ -94,21 +102,39 @@ export default function GeneratePage() {
     setAnalyzing(true);
     setIsCustomPrompt(false);
 
+    // OPEN THE CHAT MODAL IMMEDIATELY with loading state
+    setShowChatModal(true);
+    setChatLoading(true);
+
     try {
-      const res = await fetch('/api/analyze-prompt', {
+      const res = await fetch('/api/chat-refine-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ referenceMuralId: selectedMural.id }),
+        body: JSON.stringify({
+          referenceMuralId: selectedMural.id,
+          chatHistory: [],  // Empty for initial analysis
+        }),
       });
 
       const data = await res.json();
       if (data.success) {
-        setPrompt(data.analysis.suggestedPrompt);
+        // Set the prompt
+        setPrompt(data.refinedPrompt);
+
+        // Attach image ID to first user message in chat history
+        const historyWithImage = data.initialChatHistory.map((msg: any, idx: number) =>
+          idx === 0 && msg.role === 'user'
+            ? { ...msg, imageId: selectedMural.id }
+            : msg
+        );
+        setChatHistory(historyWithImage);
+
         setNotification({
           type: 'success',
-          message: 'Prompt analyzed successfully! You can edit it before generating.'
+          message: 'Prompt analyzed! You can continue refining in the chat.'
         });
       } else {
+        setShowChatModal(false);  // Close on error
         setNotification({
           type: 'error',
           message: 'Failed to analyze: ' + (data.error || 'Unknown error')
@@ -116,12 +142,14 @@ export default function GeneratePage() {
       }
     } catch (error) {
       console.error('Analysis failed:', error);
+      setShowChatModal(false);  // Close on error
       setNotification({
         type: 'error',
         message: 'Analysis failed. Please try again.'
       });
     } finally {
       setAnalyzing(false);
+      setChatLoading(false);
     }
   }
 
@@ -173,6 +201,94 @@ export default function GeneratePage() {
     } finally {
       setGenerating(false);
     }
+  }
+
+  // Initialize chat when modal opens (if not already initialized)
+  useEffect(() => {
+    if (showChatModal && chatHistory.length === 0 && prompt) {
+      // Fallback: If somehow chat wasn't initialized during analysis, initialize now
+      setChatHistory([
+        {
+          role: 'model',
+          parts: [{
+            text: JSON.stringify({
+              conversationalResponse: "Hi! I can help you refine your mural generation prompt. What changes would you like to make? For example, you could ask me to make it more colorful, add specific elements, change the artistic style, or adjust any other aspect.",
+              refinedPrompt: prompt,
+              changesSummary: []
+            })
+          }]
+        }
+      ]);
+    }
+  }, [showChatModal, prompt, chatHistory.length]);
+
+  async function handleChatSend() {
+    if (!chatInput.trim()) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatLoading(true);
+
+    // Add user message to history
+    const newUserMsg = {
+      role: 'user' as const,
+      parts: [{ text: userMessage }]
+    };
+    setChatHistory(prev => [...prev, newUserMsg]);
+
+    try {
+      const res = await fetch('/api/chat-refine-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatHistory: [...chatHistory, newUserMsg],
+          userMessage,
+          currentPrompt: prompt  // Pass current prompt
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        // Store the full JSON response from AI
+        const aiResponse = {
+          conversationalResponse: data.conversationalResponse,
+          refinedPrompt: data.refinedPrompt,
+          changesSummary: data.changesSummary,
+        };
+
+        // Add AI response to history (store as JSON string)
+        setChatHistory(prev => [...prev, {
+          role: 'model',
+          parts: [{ text: JSON.stringify(aiResponse) }]
+        }]);
+
+        // Update prompt with refined version
+        setPrompt(data.refinedPrompt);
+      } else {
+        setNotification({
+          type: 'error',
+          message: 'Chat failed: ' + (data.error || 'Unknown error')
+        });
+      }
+    } catch (error) {
+      console.error('Chat failed:', error);
+      setNotification({
+        type: 'error',
+        message: 'Chat failed. Please try again.'
+      });
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  function handleApplyRefinedPrompt() {
+    // Prompt is already updated in real-time
+    // Just close the modal
+    setShowChatModal(false);
+    setNotification({
+      type: 'success',
+      message: 'Refined prompt applied successfully!'
+    });
   }
 
   if (!selectedMural) {
@@ -285,6 +401,14 @@ export default function GeneratePage() {
               <p className="text-xs text-gray-500 mt-1">
                 {isCustomPrompt ? '✏️ Custom prompt' : '🤖 AI-suggested prompt (editable)'}
               </p>
+              {prompt && !isCustomPrompt && (
+                <button
+                  onClick={() => setShowChatModal(true)}
+                  className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                >
+                  ✨ Refine with AI Chat
+                </button>
+              )}
             </div>
 
             <button
@@ -388,6 +512,116 @@ export default function GeneratePage() {
                 <p className="text-xs text-gray-500">Model: {modalImage.modelUsed || 'N/A'}</p>
                 <p className="text-xs text-gray-500">File: {modalImage.fileName}</p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Refinement Modal */}
+      {showChatModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+          onClick={() => setShowChatModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-lg w-full max-w-3xl max-h-[80vh] flex flex-col m-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-bold">Refine Prompt with AI</h2>
+              <button
+                onClick={() => setShowChatModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chat History */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Chat messages */}
+              {chatHistory.map((msg, idx) => {
+                if (msg.role === 'user') {
+                  return (
+                    <div key={idx} className="flex justify-end">
+                      <div className="max-w-[80%] rounded-lg p-4 bg-green-600 text-white">
+                        {msg.imageId && (
+                          <div className="mb-3 rounded overflow-hidden bg-white">
+                            <img
+                              src={`/api/image?id=${msg.imageId}`}
+                              alt="Reference mural"
+                              className="w-full max-w-sm"
+                            />
+                          </div>
+                        )}
+                        <p className="text-sm whitespace-pre-wrap">{msg.parts?.[0]?.text || ''}</p>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  // Parse JSON from AI response
+                  const aiData = JSON.parse(msg.parts[0].text);
+                  return (
+                    <div key={idx} className="flex justify-start">
+                      <div className="max-w-[80%] rounded-lg p-4 bg-gray-100 text-gray-800">
+                        <p className="text-sm mb-2">{aiData.conversationalResponse}</p>
+                        {aiData.changesSummary && aiData.changesSummary.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-300">
+                            <p className="text-xs font-medium text-gray-600 mb-1">Changes made:</p>
+                            <ul className="text-xs text-gray-600 list-disc list-inside">
+                              {aiData.changesSummary.map((change: string, i: number) => (
+                                <li key={i}>{change}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 text-gray-800 rounded-lg p-4">
+                    <p className="text-sm">AI is thinking...</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input Area */}
+            <div className="border-t p-4 space-y-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleChatSend();
+                    }
+                  }}
+                  placeholder="Ask for changes (e.g., 'Make it more colorful')"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  disabled={chatLoading}
+                />
+                <button
+                  onClick={handleChatSend}
+                  disabled={!chatInput.trim() || chatLoading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition text-sm"
+                >
+                  Send
+                </button>
+              </div>
+              <button
+                onClick={handleApplyRefinedPrompt}
+                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
+              >
+                Apply Refined Prompt
+              </button>
             </div>
           </div>
         </div>
