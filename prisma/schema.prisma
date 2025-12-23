@@ -21,8 +21,13 @@ model ReferenceMural {
   metadata        String?  // JSON string for any extra data
   importedAt      DateTime @default(now())
 
-  // Relation to generated murals
-  generatedMurals GeneratedMural[]
+  // Artistic descriptions (batch-generated)
+  artisticDescription     String?   // JSON string following ArtisticDescription schema
+  descriptionGeneratedAt  DateTime? // When description was generated
+
+  // Relations
+  generatedMurals         GeneratedMural[]
+  batchDescriptionJob     BatchDescriptionJob?
 
   @@index([collectionName, designName])
 }
@@ -52,4 +57,25 @@ model GeneratedMural {
 
   @@index([referenceMuralId])
   @@index([createdAt])
+}
+
+// Batch description generation jobs
+model BatchDescriptionJob {
+  id                String    @id @default(uuid())
+  referenceMuralId  String    @unique  // One-to-one relationship
+  referenceMural    ReferenceMural @relation(fields: [referenceMuralId], references: [id], onDelete: Cascade)
+
+  batchJobId        String    @unique  // Gemini batch job ID (e.g., "operations/1234567890")
+  status            String              // Use Gemini's exact strings: JOB_STATE_PENDING, JOB_STATE_RUNNING, JOB_STATE_SUCCEEDED, JOB_STATE_FAILED, JOB_STATE_CANCELLED, JOB_STATE_EXPIRED
+
+  submittedAt       DateTime  @default(now())
+  lastPolledAt      DateTime?
+  completedAt       DateTime?
+
+  requestPayload    String?   // Full request payload sent to Gemini (for debugging)
+  rawResponse       String?   // Full JSON from Gemini (unparsed)
+  errorMessage      String?   // Error details if failed
+
+  @@index([status])
+  @@index([submittedAt])
 }

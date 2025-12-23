@@ -1,0 +1,40 @@
+{
+  "text_message": "This is a classic Chinoiserie concept featuring a serene garden scene. I've detailed the specific flora and fauna—including the magnolias, cherries, and the pink crane—while ensuring the 18th-century gouache texture is noted for that hand-painted look.",
+  "json_prompt": {
+    "meta_tags": {
+      "style_category": "Chinoiserie / Botanical Mural",
+      "seamless_potential": true,
+      "perspective_type": "Flat/2D Decorative"
+    },
+    "artistic_reference": {
+      "art_movement": "18th-Century Chinoiserie",
+      "influential_artists": [
+        "Traditional 18th-Century Wallpaper Craftsmen",
+        "de Gournay style"
+      ],
+      "era": "18th Century Rococo influence"
+    },
+    "medium_and_texture": {
+      "primary_medium": "Gouache and Watercolor",
+      "background_substrate": "Soft Warm Parchment / Aged Ivory Paper",
+      "brushwork_style": "Fine lines with soft blending; delicate, naturalistic detail"
+    },
+    "visual_composition": {
+      "subject_matter": "A serene garden scene with winding tree branches extending upwards from a rolling landscape base.",
+      "structural_layout": "Central but naturally asymmetrical vertical growth; grounded by a landscape at the bottom.",
+      "key_elements": [
+        "Winding tree branches",
+        "Magnolia flowers",
+        "Deep red cherries",
+        "Songbirds (finches, wrens, orioles) in flight",
+        "Majestic Pink Crane standing at the base",
+        "Wildflowers (white and lavender)"
+      ]
+    },
+    "color_profile": {
+      "dominant_palette": "Warm Beige (background), Sage/Olive/Emerald (foliage), Soft Cream/Pink (flowers), Rich Red (cherries), Rose/Blush (crane)",
+      "mood": "Serene, Elegant, Light, Airy",
+      "lighting": "Soft and diffused, no harsh shadows"
+    }
+  }
+}

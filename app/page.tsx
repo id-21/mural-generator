@@ -25,10 +25,13 @@ export default function HomePage() {
   const [importStats, setImportStats] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const [recentGenerations, setRecentGenerations] = useState<GeneratedMural[]>([]);
+  const [batchStats, setBatchStats] = useState({ pending: 0, running: 0, completed: 0, failed: 0, expired: 0, cancelled: 0 });
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     loadStats();
     loadRecentGenerations();
+    pollBatchJobs();
   }, []);
 
   async function loadStats() {
@@ -66,6 +69,36 @@ export default function HomePage() {
     }
   }
 
+  async function pollBatchJobs() {
+    try {
+      const res = await fetch('/api/batch-descriptions/poll');
+      const stats = await res.json();
+      setBatchStats(stats);
+    } catch (error) {
+      console.error('Failed to poll batch jobs:', error);
+    }
+  }
+
+  async function handleGenerateDescriptions() {
+    setIsGenerating(true);
+    try {
+      const res = await fetch('/api/batch-descriptions/start', { method: 'POST' });
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(`Created ${data.jobsCreated} batch jobs. Descriptions will generate in background.\n\nCheck back in a few minutes and click "Process Completed Jobs" to save results.`);
+        pollBatchJobs();
+      } else {
+        alert(`Error: ${data.error || 'Failed to create batch jobs'}`);
+      }
+    } catch (error) {
+      console.error('Failed to generate descriptions:', error);
+      alert('Failed to create batch jobs. Check console for details.');
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Stats Section */}
@@ -87,16 +120,43 @@ export default function HomePage() {
           <p className="text-gray-500">Loading stats...</p>
         )}
 
-        <button
-          onClick={handleImport}
-          disabled={importing}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
-          {importing ? 'Importing...' : 'Import Reference Murals'}
-        </button>
-        <p className="text-sm text-gray-500 mt-2">
-          Scans your local directory and imports all -design images
-        </p>
+        <div className="flex gap-4 mt-4">
+          <div className="flex-1">
+            <button
+              onClick={handleImport}
+              disabled={importing}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {importing ? 'Importing...' : 'Import Reference Murals'}
+            </button>
+            <p className="text-sm text-gray-500 mt-2">
+              Scans your local directory and imports all -design images
+            </p>
+          </div>
+
+          <div className="flex-1">
+            <button
+              onClick={handleGenerateDescriptions}
+              disabled={isGenerating || batchStats.pending > 0 || batchStats.running > 0}
+              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? 'Creating Jobs...' : `Generate Artistic Descriptions`}
+            </button>
+            <p className="text-sm text-gray-500 mt-2">
+              {batchStats.pending > 0 || batchStats.running > 0 ? (
+                <span className="text-orange-600 font-medium">
+                  {batchStats.pending} pending, {batchStats.running} running, {batchStats.completed} completed
+                </span>
+              ) : batchStats.completed > 0 ? (
+                <span className="text-green-600 font-medium">
+                  {batchStats.completed} descriptions completed, {batchStats.failed} failed
+                </span>
+              ) : (
+                'AI analyzes murals for better generation prompts'
+              )}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Recent Generations */}

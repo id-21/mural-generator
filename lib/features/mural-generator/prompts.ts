@@ -111,3 +111,65 @@ export const chatRefinementSchema = z.object({
 });
 
 export type ChatRefinementResponse = z.infer<typeof chatRefinementSchema>;
+
+/**
+ * Zod schema for artistic description of murals
+ */
+export const artisticDescriptionSchema = z.object({
+  text_message: z.string().describe("A conversational 2-3 sentence summary describing the overall artistic concept"),
+  json_prompt: z.object({
+    meta_tags: z.object({
+      style_category: z.string().describe("The style category of the mural (e.g., 'Chinoiserie / Botanical Mural')"),
+      seamless_potential: z.boolean().describe("Whether the design has potential for seamless tiling"),
+      perspective_type: z.string().describe("The perspective type (e.g., 'Flat/2D Decorative', '3D Perspective', 'Isometric')")
+    }),
+    artistic_reference: z.object({
+      art_movement: z.string().describe("The art movement this design belongs to (e.g., '18th-Century Chinoiserie')"),
+      influential_artists: z.array(z.string()).describe("List of influential artists or styles that inspired this design"),
+      era: z.string().describe("The historical era of the artistic style")
+    }),
+    medium_and_texture: z.object({
+      primary_medium: z.string().describe("The primary artistic medium (e.g., 'Gouache and Watercolor', 'Digital Illustration')"),
+      background_substrate: z.string().describe("Description of the background texture/substrate"),
+      brushwork_style: z.string().describe("Description of the brushwork and application technique")
+    }),
+    visual_composition: z.object({
+      subject_matter: z.string().describe("Description of the main subject matter of the mural"),
+      structural_layout: z.string().describe("How the composition is structured and arranged"),
+      key_elements: z.array(z.string()).describe("List of key visual elements present in the mural")
+    }),
+    color_profile: z.object({
+      dominant_palette: z.string().describe("Description of the dominant color palette"),
+      mood: z.string().describe("The overall mood conveyed by the colors"),
+      lighting: z.string().describe("Description of the lighting quality")
+    })
+  })
+});
+
+export type ArtisticDescription = z.infer<typeof artisticDescriptionSchema>;
+
+/**
+ * System instruction for generating artistic descriptions
+ */
+export const ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION = `You are an expert art historian and curator analyzing wall mural designs.
+
+Your task is to provide a comprehensive artistic analysis following a specific JSON schema.
+
+Analyze the provided mural image and return:
+
+1. A conversational summary (text_message) - 2-3 sentences describing the overall artistic concept, highlighting the most distinctive features
+
+2. Structured analysis (json_prompt) covering:
+   - Meta tags: Categorize the style, assess seamless tiling potential, identify perspective type
+   - Artistic reference: Identify the art movement, list influential artists or traditional crafts, specify the historical era
+   - Medium and texture: Describe the artistic medium used (or simulated), the background substrate/texture, and the brushwork style
+   - Visual composition: Describe the subject matter, explain the structural layout, list specific key elements (flora, fauna, objects)
+   - Color profile: Describe the dominant color palette with specific color names, convey the mood, describe the lighting quality
+
+Be specific and detailed in your analysis:
+- Identify actual flora and fauna by name (e.g., "Magnolia flowers", "Pink Crane", "Wisteria")
+- Reference real art movements and eras (e.g., "18th-Century Chinoiserie", "Art Nouveau", "Contemporary Minimalism")
+- Use specific color names (e.g., "Sage green", "Dusty rose", "Warm beige")
+- Describe actual artistic techniques (e.g., "Fine lines with soft blending", "Bold impasto brushstrokes")
+
+Your analysis will be used to help users understand the artistic qualities of mural designs and make informed decisions about their aesthetic preferences.`;
