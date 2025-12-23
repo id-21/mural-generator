@@ -524,7 +524,7 @@ export default function GeneratePage() {
           onClick={() => setShowChatModal(false)}
         >
           <div
-            className="relative bg-white rounded-lg w-full max-w-3xl max-h-[80vh] flex flex-col m-4"
+            className="relative bg-white rounded-lg w-full max-w-6xl max-h-[80vh] flex flex-col m-4"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -538,57 +538,89 @@ export default function GeneratePage() {
               </button>
             </div>
 
-            {/* Chat History */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {/* Chat messages */}
-              {chatHistory.map((msg, idx) => {
-                if (msg.role === 'user') {
-                  return (
-                    <div key={idx} className="flex justify-end">
-                      <div className="max-w-[80%] rounded-lg p-4 bg-green-600 text-white">
-                        {msg.imageId && (
-                          <div className="mb-3 rounded overflow-hidden bg-white">
-                            <img
-                              src={`/api/image?id=${msg.imageId}`}
-                              alt="Reference mural"
-                              className="w-full max-w-sm"
-                            />
-                          </div>
-                        )}
-                        <p className="text-sm whitespace-pre-wrap">{msg.parts?.[0]?.text || ''}</p>
+            {/* Two-column layout: Chat History | Prompt Preview + Changes */}
+            <div className="flex-1 overflow-hidden grid grid-cols-3 gap-0">
+              {/* Left Column: Chat History (2/3 width) */}
+              <div className="col-span-2 flex flex-col overflow-y-auto p-6 space-y-4 border-r border-gray-200">
+                {/* Chat messages */}
+                {chatHistory.map((msg, idx) => {
+                  if (msg.role === 'user') {
+                    return (
+                      <div key={idx} className="flex justify-end">
+                        <div className="max-w-[80%] rounded-lg p-4 bg-green-600 text-white">
+                          {msg.imageId && (
+                            <div className="mb-3 rounded overflow-hidden bg-white">
+                              <img
+                                src={`/api/image?id=${msg.imageId}`}
+                                alt="Reference mural"
+                                className="w-full max-w-sm"
+                              />
+                            </div>
+                          )}
+                          <p className="text-sm whitespace-pre-wrap">{msg.parts?.[0]?.text || ''}</p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                } else {
-                  // Parse JSON from AI response
-                  const aiData = JSON.parse(msg.parts[0].text);
-                  return (
-                    <div key={idx} className="flex justify-start">
-                      <div className="max-w-[80%] rounded-lg p-4 bg-gray-100 text-gray-800">
-                        <p className="text-sm mb-2">{aiData.conversationalResponse}</p>
-                        {aiData.changesSummary && aiData.changesSummary.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-gray-300">
-                            <p className="text-xs font-medium text-gray-600 mb-1">Changes made:</p>
-                            <ul className="text-xs text-gray-600 list-disc list-inside">
-                              {aiData.changesSummary.map((change: string, i: number) => (
-                                <li key={i}>{change}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                    );
+                  } else {
+                    // Parse JSON from AI response
+                    const aiData = JSON.parse(msg.parts[0].text);
+                    return (
+                      <div key={idx} className="flex justify-start">
+                        <div className="max-w-[80%] rounded-lg p-4 bg-gray-100 text-gray-800">
+                          <p className="text-sm mb-2">{aiData.conversationalResponse}</p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                }
-              })}
+                    );
+                  }
+                })}
 
-              {chatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-100 text-gray-800 rounded-lg p-4">
-                    <p className="text-sm">AI is thinking...</p>
+                {chatLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-gray-100 text-gray-800 rounded-lg p-4">
+                      <p className="text-sm">AI is thinking...</p>
+                    </div>
                   </div>
+                )}
+              </div>
+
+              {/* Right Column: Prompt Preview + Changes Summary (1/3 width) */}
+              <div className="col-span-1 flex flex-col bg-gray-50">
+                {/* Prompt Preview (top section) */}
+                <div className="flex-1 overflow-y-auto p-4 border-b border-gray-300">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Refined Prompt Preview</h3>
+                  <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap break-words">
+                    {prompt || 'No prompt yet...'}
+                  </pre>
                 </div>
-              )}
+
+                {/* Changes Summary (bottom section) */}
+                <div className="max-h-[200px] overflow-y-auto p-3 bg-blue-50">
+                  <h3 className="text-xs font-medium text-gray-700 mb-2">Latest Changes</h3>
+                  {(() => {
+                    const latestChanges = chatHistory
+                      .filter(msg => msg.role === 'model')
+                      .map(msg => {
+                        try {
+                          return JSON.parse(msg.parts[0].text);
+                        } catch {
+                          return null;
+                        }
+                      })
+                      .filter(Boolean)
+                      .reverse()[0]?.changesSummary || [];
+
+                    return latestChanges.length > 0 ? (
+                      <ul className="text-xs text-gray-700 list-disc list-inside space-y-1">
+                        {latestChanges.map((change: string, i: number) => (
+                          <li key={i}>{change}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-gray-500 italic">No changes yet</p>
+                    );
+                  })()}
+                </div>
+              </div>
             </div>
 
             {/* Input Area */}
