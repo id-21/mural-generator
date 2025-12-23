@@ -44,7 +44,6 @@ export async function generateMural(
   try {
     const response = await ai.models.generateContent({
       model,
-      systemInstruction: GENERATE_MURAL_SYSTEM_INSTRUCTION,
       contents: [
         { text: prompt },
         {
@@ -54,6 +53,9 @@ export async function generateMural(
           },
         },
       ],
+      config: {
+        systemInstruction: GENERATE_MURAL_SYSTEM_INSTRUCTION,
+      }
     });
 
     // Extract generated image from response
@@ -135,10 +137,10 @@ export async function refinePromptWithChat(
     // 1. Define the request object explicitly
     const requestPayload = {
       model,
-      systemInstruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION,
       contents,
       config: {
         responseMimeType: 'application/json',
+        systemInstruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION,
         responseJsonSchema: zodToJsonSchema(chatRefinementSchema) as any,
       },
     };
