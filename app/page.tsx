@@ -124,7 +124,7 @@ export default function HomePage() {
       </div>
 
       {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <Link
           href="/browse"
           className="bg-purple-600 text-white rounded-lg p-6 text-center hover:bg-purple-700 transition"
@@ -142,6 +142,16 @@ export default function HomePage() {
           <h3 className="text-xl font-semibold mb-2">Generate New Mural</h3>
           <p className="text-green-100 text-sm">
             Create AI-generated murals from reference designs
+          </p>
+        </Link>
+
+        <Link
+          href="/gallery"
+          className="bg-blue-600 text-white rounded-lg p-6 text-center hover:bg-blue-700 transition"
+        >
+          <h3 className="text-xl font-semibold mb-2">View Gallery</h3>
+          <p className="text-blue-100 text-sm">
+            Browse all generated murals
           </p>
         </Link>
       </div>

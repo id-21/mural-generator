@@ -444,6 +444,13 @@ export default function GeneratePage() {
               </div>
             )}
           </div>
+
+          {/* Link to Gallery */}
+          <div className="mt-4 text-center">
+            <Link href="/gallery" className="text-blue-600 hover:underline text-sm">
+              View in Gallery →
+            </Link>
+          </div>
         </div>
       )}
 
