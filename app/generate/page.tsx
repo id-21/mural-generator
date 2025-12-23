@@ -584,9 +584,9 @@ export default function GeneratePage() {
               </div>
 
               {/* Right Column: Prompt Preview + Changes Summary (1/3 width) */}
-              <div className="col-span-1 flex flex-col bg-gray-50">
+              <div className="col-span-1 flex flex-col bg-gray-50 overflow-hidden">
                 {/* Prompt Preview (top section) */}
-                <div className="flex-1 overflow-y-auto p-4 border-b border-gray-300">
+                <div className="h-[65%] overflow-y-auto p-4 border-b border-gray-300">
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Refined Prompt Preview</h3>
                   <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap break-words">
                     {prompt || 'No prompt yet...'}
@@ -594,7 +594,7 @@ export default function GeneratePage() {
                 </div>
 
                 {/* Changes Summary (bottom section) */}
-                <div className="max-h-[200px] overflow-y-auto p-3 bg-blue-50">
+                <div className="h-[35%] overflow-y-auto p-3 bg-blue-50">
                   <h3 className="text-xs font-medium text-gray-700 mb-2">Latest Changes</h3>
                   {(() => {
                     const latestChanges = chatHistory
