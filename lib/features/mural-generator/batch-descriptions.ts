@@ -8,6 +8,12 @@ import {
   ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION,
   ArtisticDescription
 } from './prompts';
+import {
+  BatchConflictStrategy,
+  BatchConflictSummary,
+  BatchResolutionPreview,
+  MuralConflict
+} from './types';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import * as path from 'path';
@@ -30,6 +36,263 @@ function getGeminiClient(): GoogleGenAI {
 }
 
 /**
+ * Archive a batch job before deletion
+ * Preserves all job data for audit trail
+ */
+async function archiveBatchJob(
+  job: any,
+  reason: string,
+  replacedByJobId?: string
+): Promise<void> {
+  await db.batchDescriptionJobArchive.create({
+    data: {
+      originalJobId: job.id,
+      referenceMuralId: job.referenceMuralId,
+      batchJobId: job.batchJobId,
+      status: job.status,
+      submittedAt: job.submittedAt,
+      lastPolledAt: job.lastPolledAt,
+      completedAt: job.completedAt,
+      requestPayload: job.requestPayload,
+      rawResponse: job.rawResponse,
+      errorMessage: job.errorMessage,
+      replacementReason: reason,
+      replacedByJobId: replacedByJobId || null
+    }
+  });
+}
+
+/**
+ * Check for existing batch jobs across all murals without descriptions
+ * Returns conflict summary for user decision
+ */
+export async function checkBatchJobConflicts(): Promise<BatchConflictSummary> {
+  // Find all murals without artistic descriptions
+  const muralsWithoutDescriptions = await db.referenceMural.findMany({
+    where: {
+      artisticDescription: null
+    },
+    select: {
+      id: true,
+      collectionName: true,
+      designName: true,
+      colorVariant: true,
+      batchDescriptionJob: {
+        select: {
+          id: true,
+          batchJobId: true,
+          status: true,
+          submittedAt: true,
+          completedAt: true,
+          errorMessage: true
+        }
+      }
+    }
+  });
+
+  // Build conflict summary
+  const conflicts = {
+    pending: 0,
+    running: 0,
+    succeeded: 0,
+    failed: 0,
+    expired: 0,
+    cancelled: 0
+  };
+
+  const murals: MuralConflict[] = muralsWithoutDescriptions.map(mural => {
+    const existingJob = mural.batchDescriptionJob;
+
+    if (existingJob) {
+      // Count by status
+      if (existingJob.status === 'JOB_STATE_PENDING') conflicts.pending++;
+      else if (existingJob.status === 'JOB_STATE_RUNNING') conflicts.running++;
+      else if (existingJob.status === 'JOB_STATE_SUCCEEDED') conflicts.succeeded++;
+      else if (existingJob.status === 'JOB_STATE_FAILED') conflicts.failed++;
+      else if (existingJob.status === 'JOB_STATE_EXPIRED') conflicts.expired++;
+      else if (existingJob.status === 'JOB_STATE_CANCELLED') conflicts.cancelled++;
+    }
+
+    return {
+      muralId: mural.id,
+      collectionName: mural.collectionName,
+      designName: mural.designName,
+      colorVariant: mural.colorVariant,
+      existingJob: existingJob || null
+    };
+  });
+
+  return {
+    totalMurals: muralsWithoutDescriptions.length,
+    conflicts,
+    murals
+  };
+}
+
+/**
+ * Generate preview for a specific strategy
+ * Shows what will happen if user applies this strategy
+ */
+export function generateResolutionPreview(
+  conflictSummary: BatchConflictSummary,
+  strategy: BatchConflictStrategy
+): BatchResolutionPreview {
+  const { conflicts, murals } = conflictSummary;
+  const totalConflicts = Object.values(conflicts).reduce((a, b) => a + b, 0);
+
+  let willCreate = 0;
+  let willSkip = 0;
+  let willArchive = 0;
+  const warnings: string[] = [];
+
+  switch (strategy) {
+    case 'SKIP_CONFLICTS':
+      willCreate = conflictSummary.totalMurals - totalConflicts;
+      willSkip = totalConflicts;
+      willArchive = 0;
+      if (conflicts.failed > 0 || conflicts.expired > 0 || conflicts.cancelled > 0) {
+        warnings.push(
+          `${conflicts.failed + conflicts.expired + conflicts.cancelled} failed/expired/cancelled jobs will NOT be retried`
+        );
+      }
+      break;
+
+    case 'RETRY_FAILED':
+      const failedCount = conflicts.failed + conflicts.expired + conflicts.cancelled;
+      willCreate = (conflictSummary.totalMurals - totalConflicts) + failedCount;
+      willSkip = conflicts.pending + conflicts.running + conflicts.succeeded;
+      willArchive = failedCount;
+      if (conflicts.running > 0) {
+        warnings.push(`${conflicts.running} running jobs will continue (not cancelled)`);
+      }
+      if (conflicts.succeeded > 0) {
+        warnings.push(`${conflicts.succeeded} succeeded jobs will be kept (use Process Jobs to save results)`);
+      }
+      break;
+
+    case 'REPLACE_ALL':
+      willCreate = conflictSummary.totalMurals;
+      willSkip = 0;
+      willArchive = totalConflicts;
+      if (conflicts.running > 0) {
+        warnings.push(`⚠️ WARNING: ${conflicts.running} running jobs will be CANCELLED and replaced`);
+      }
+      if (conflicts.succeeded > 0) {
+        warnings.push(`⚠️ WARNING: ${conflicts.succeeded} succeeded jobs will be deleted and replaced`);
+      }
+      break;
+  }
+
+  return {
+    strategy,
+    willCreate,
+    willSkip,
+    willArchive,
+    warnings
+  };
+}
+
+/**
+ * Apply conflict resolution strategy and create batch jobs
+ * Archives jobs as needed, respects strategy rules
+ */
+export async function createBatchJobsWithStrategy(
+  strategy: BatchConflictStrategy
+): Promise<{
+  jobsCreated: number;
+  jobsSkipped: number;
+  jobsArchived: number;
+  errors: string[];
+}> {
+  console.log(`Applying strategy: ${strategy}`);
+
+  // Get all murals without descriptions
+  const muralsWithoutDescriptions = await db.referenceMural.findMany({
+    where: {
+      artisticDescription: null
+    },
+    include: {
+      batchDescriptionJob: true
+    }
+  });
+
+  let jobsCreated = 0;
+  let jobsSkipped = 0;
+  let jobsArchived = 0;
+  const errors: string[] = [];
+
+  for (const mural of muralsWithoutDescriptions) {
+    const existingJob = mural.batchDescriptionJob;
+
+    try {
+      // Determine action based on strategy
+      let shouldCreate = false;
+      let shouldArchive = false;
+
+      if (!existingJob) {
+        // No existing job - always create
+        shouldCreate = true;
+      } else {
+        switch (strategy) {
+          case 'SKIP_CONFLICTS':
+            // Skip if any job exists
+            shouldCreate = false;
+            jobsSkipped++;
+            break;
+
+          case 'RETRY_FAILED':
+            // Only replace failed/expired/cancelled jobs
+            const isFailedState = ['JOB_STATE_FAILED', 'JOB_STATE_EXPIRED', 'JOB_STATE_CANCELLED'].includes(existingJob.status);
+            shouldCreate = isFailedState;
+            shouldArchive = isFailedState;
+            if (!isFailedState) {
+              jobsSkipped++;
+            }
+            break;
+
+          case 'REPLACE_ALL':
+            // Replace everything
+            shouldCreate = true;
+            shouldArchive = true;
+            break;
+        }
+      }
+
+      if (shouldArchive && existingJob) {
+        // Archive existing job before deletion
+        await archiveBatchJob(existingJob, `STRATEGY_${strategy}`);
+        jobsArchived++;
+
+        // Delete existing job
+        await db.batchDescriptionJob.delete({
+          where: { id: existingJob.id }
+        });
+      }
+
+      if (shouldCreate) {
+        // Create new batch job (using existing function)
+        await createBatchJobForMural(mural.id);
+        jobsCreated++;
+      }
+
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      errors.push(`Mural ${mural.id}: ${errorMsg}`);
+      console.error(`Error processing mural ${mural.id}:`, error);
+    }
+  }
+
+  console.log(`Strategy complete: ${jobsCreated} created, ${jobsSkipped} skipped, ${jobsArchived} archived`);
+
+  return {
+    jobsCreated,
+    jobsSkipped,
+    jobsArchived,
+    errors
+  };
+}
+
+/**
  * Create a batch job for generating artistic description for a single mural
  * Uses inline request approach (1 mural = 1 batch job)
  */
@@ -43,19 +306,6 @@ export async function createBatchJobForMural(muralId: string): Promise<string> {
 
   if (!mural) {
     throw new Error(`Reference mural not found: ${muralId}`);
-  }
-
-  // Check if batch job already exists for this mural (one-to-one relationship)
-  const existingJob = await db.batchDescriptionJob.findUnique({
-    where: { referenceMuralId: muralId }
-  });
-
-  // Delete old job if exists (retry scenario)
-  if (existingJob) {
-    console.log(`Deleting existing batch job for mural: ${muralId}`);
-    await db.batchDescriptionJob.delete({
-      where: { id: existingJob.id }
-    });
   }
 
   // Read image as base64

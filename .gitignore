@@ -41,3 +41,5 @@ next-env.d.ts
 # prisma database (local SQLite)
 prisma/*.db
 prisma/*.db-journal
+
+tmp/

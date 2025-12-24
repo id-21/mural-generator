@@ -9,6 +9,7 @@ Next.js 13+ App Router API routes for the mural generator application. Provides 
 - `generated-murals/route.ts` - GET lists generated murals with optional reference filter and limit
 - `generate-mural/` - POST generates new mural (see [generate-mural/CLAUDE.md](generate-mural/CLAUDE.md))
 - `chat-refine-prompt/route.ts` - POST for chat-based prompt refinement (initial analysis + iterative refinement)
+- `batch-descriptions/` - Batch artistic description generation via Gemini Batch API (see [batch-descriptions/CLAUDE.md](batch-descriptions/CLAUDE.md))
 - `image/route.ts` - GET serves local images by mural ID (checks both reference and generated tables)
 </file_map>
 
@@ -84,6 +85,13 @@ Example: [image/route.ts:56-62](image/route.ts#L56-L62)
 **Generation:**
 - `POST /api/generate-mural` - Generate new mural (see child CLAUDE.md)
 - `POST /api/chat-refine-prompt` - Chat-based prompt refinement
+
+**Batch Descriptions (Gemini Batch API):**
+- `POST /api/batch-descriptions/start` - Create batch jobs for all murals without descriptions
+- `GET /api/batch-descriptions/poll` - Poll pending/running batch jobs and update status
+- `POST /api/batch-descriptions/process` - Parse completed jobs and save descriptions (manual trigger)
+- `POST /api/batch-descriptions/test-one` - Test endpoint - create batch job for 1 mural
+- `GET /api/batch-descriptions/check-orphaned` - Debug endpoint - check orphaned Gemini batch jobs
 
 **Serving:**
 - `GET /api/image?id={muralId}` - Serve image file from filesystem

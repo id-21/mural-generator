@@ -91,3 +91,56 @@ export interface BatchDescriptionJob {
   createdAt: Date;
   completedAt?: Date;
 }
+
+/**
+ * Conflict resolution strategies for batch job creation
+ */
+export type BatchConflictStrategy =
+  | 'SKIP_CONFLICTS'      // Only create jobs for murals without existing jobs
+  | 'RETRY_FAILED'        // Keep PENDING/RUNNING/SUCCEEDED, replace FAILED/EXPIRED/CANCELLED
+  | 'REPLACE_ALL';        // Delete all existing jobs and create new ones
+
+/**
+ * Conflict detection result for a single mural
+ */
+export interface MuralConflict {
+  muralId: string;
+  collectionName: string;
+  designName: string;
+  colorVariant: string | null;
+  existingJob: {
+    id: string;
+    batchJobId: string;
+    status: string;
+    submittedAt: Date;
+    completedAt: Date | null;
+    errorMessage: string | null;
+  } | null;
+}
+
+/**
+ * Conflict summary for batch operation
+ */
+export interface BatchConflictSummary {
+  totalMurals: number;
+  conflicts: {
+    pending: number;
+    running: number;
+    succeeded: number;
+    failed: number;
+    expired: number;
+    cancelled: number;
+  };
+  murals: MuralConflict[];
+}
+
+/**
+ * Resolution preview for a strategy
+ */
+export interface BatchResolutionPreview {
+  strategy: BatchConflictStrategy;
+  willCreate: number;
+  willSkip: number;
+  willArchive: number;
+  warnings: string[];
+}

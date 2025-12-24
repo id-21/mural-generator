@@ -79,3 +79,31 @@ model BatchDescriptionJob {
   @@index([status])
   @@index([submittedAt])
 }
+
+// Archive for replaced/deleted batch jobs (preserves history forever)
+model BatchDescriptionJobArchive {
+  id                String    @id @default(uuid())
+
+  // Original job data (preserved from BatchDescriptionJob)
+  originalJobId     String    // Original UUID from BatchDescriptionJob
+  referenceMuralId  String    // NOT a foreign key - mural may be deleted
+  batchJobId        String    // Gemini batch job ID
+  status            String    // Status at time of archival
+
+  submittedAt       DateTime
+  lastPolledAt      DateTime?
+  completedAt       DateTime?
+
+  requestPayload    String?
+  rawResponse       String?
+  errorMessage      String?
+
+  // Archive metadata
+  archivedAt        DateTime  @default(now())
+  replacementReason String    // e.g., "STRATEGY_REPLACE_ALL", "STRATEGY_RETRY_FAILED", "MANUAL_DELETION"
+  replacedByJobId   String?   // New job ID if replaced (optional)
+
+  @@index([referenceMuralId])
+  @@index([archivedAt])
+  @@index([status])
+}
