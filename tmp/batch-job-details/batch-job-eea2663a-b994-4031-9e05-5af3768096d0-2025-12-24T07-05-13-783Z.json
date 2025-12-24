@@ -1,0 +1,8 @@
+{
+  "name": "batches/0ntkv7o9ls8s1eygb2fsvl8wtppeo33oykz5",
+  "displayName": "artistic-desc-eea2663a-b994-4031-9e05-5af3768096d0",
+  "state": "JOB_STATE_PENDING",
+  "createTime": "2025-12-24T07:05:11.193830471Z",
+  "updateTime": "2025-12-24T07:05:11.193830471Z",
+  "model": "models/gemini-2.5-flash"
+}

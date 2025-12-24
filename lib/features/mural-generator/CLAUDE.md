@@ -6,8 +6,9 @@ Core business logic for the mural generation feature. Handles Gemini AI integrat
 ## FILE MAP
 - `gemini.ts` - Gemini API client with 2 functions: `generateMural()` for image generation, `refinePromptWithChat()` for conversational refinement
 - `storage.ts` - File I/O utilities for reading/writing images, base64 conversion, MIME type detection, directory structure management
-- `prompts.ts` - System instructions, prompt templates, and Zod schemas for Gemini API calls
+- `prompts.ts` - System instructions, prompt templates, and Zod schemas for Gemini API calls (includes `artisticDescriptionSchema` for batch descriptions)
 - `import.ts` - Recursive directory scanner and database importer for reference murals (expects `collection/design/variant/*-design.jpg` structure)
+- `batch-descriptions.ts` - Gemini Batch API integration for generating artistic descriptions: `createBatchJobForMural()`, `pollBatchJobs()`, `processCompletedJobs()`
 - `types.ts` - TypeScript interfaces for `ReferenceMural`, `GeneratedMural`, `GenerationRequest`, `PromptAnalysisResult`
 </file_map>
 
@@ -26,11 +27,19 @@ const response = await ai.models.generateContent({
 ```
 
 ### JSON Schema Validation with Zod
-Chat refinement uses Zod for runtime validation (see [prompts.ts:107-111](prompts.ts#L107-L111)):
+Chat refinement and batch descriptions use Zod for runtime validation (see [prompts.ts:107-111](prompts.ts#L107-L111)):
 - Define schema: `const schema = z.object({...})`
 - Convert to JSON Schema: `zodToJsonSchema(schema)`
+- CRITICAL: Delete `$schema` field before sending to Gemini ([batch-descriptions.ts:72-73](batch-descriptions.ts#L72-L73))
 - Pass to Gemini: `responseJsonSchema: zodToJsonSchema(schema)`
 - Parse response: `schema.parse(JSON.parse(response.text))`
+
+### Batch API Pattern (1 mural = 1 batch job)
+Batch artistic descriptions use inline requests (see [batch-descriptions.ts:76-99](batch-descriptions.ts#L76-L99)):
+- Request: `{ model, src: [{ contents, config }], config: { displayName } }`
+- Response saved to DB as `rawResponse` before parsing ([batch-descriptions.ts:179-182](batch-descriptions.ts#L179-L182))
+- Parse separate from API call for reprocessing capability ([batch-descriptions.ts:262-284](batch-descriptions.ts#L262-L284))
+- One-to-one relationship enforced: delete old job before creating new ([batch-descriptions.ts:49-59](batch-descriptions.ts#L49-L59))
 
 ### File Storage Structure
 Generated murals organized by reference metadata ([storage.ts:35-41](storage.ts#L35-L41)):
@@ -55,13 +64,16 @@ contents: [
 <critical_notes>
 ## CRITICAL NOTES
 
-- **Singleton Gemini client** - `getGeminiClient()` caches instance, throws if `GEMINI_API_KEY` missing ([gemini.ts:19-27](gemini.ts#L19-L27))
+- **Singleton Gemini client** - `getGeminiClient()` caches instance, throws if `GEMINI_API_KEY` missing ([gemini.ts:19-27](gemini.ts#L19-L27), [batch-descriptions.ts:21-30](batch-descriptions.ts#L21-L30))
 - **Seamless tiling requirement** - All mural prompts emphasize horizontal repeatability ([prompts.ts:58-59](prompts.ts#L58-L59))
 - **Two-mode chat system** - Chat refinement handles both initial image analysis (with image) and text-only refinement (without image) ([prompts.ts:83-97](prompts.ts#L83-L97))
 - **Import idempotency** - Import checks `localFilePath` uniqueness before inserting ([import.ts:100-108](import.ts#L100-L108))
 - **File naming convention** - Only files ending with `-design.jpg` or `-design.png` are imported ([import.ts:59](import.ts#L59))
 - **Response extraction** - Generated images extracted from `response.candidates[0].content.parts[].inlineData.data` ([gemini.ts:64-79](gemini.ts#L64-L79))
 - **Metadata as JSON** - `generationParams` stored as stringified JSON in database ([storage.ts:20-29](storage.ts#L20-L29) shows timestamp example)
+- **Batch API debugging** - Request payloads and job details saved to `/tmp` for debugging ([batch-descriptions.ts:106-124](batch-descriptions.ts#L106-L124))
+- **Database-driven batch processing** - Raw responses stored before parsing for reprocessing capability ([batch-descriptions.ts:179-182](batch-descriptions.ts#L179-L182))
+- **Status tracking** - Use Gemini's exact status strings (JOB_STATE_PENDING, JOB_STATE_RUNNING, JOB_STATE_SUCCEEDED, etc.) ([batch-descriptions.ts:130](batch-descriptions.ts#L130))
 </critical_notes>
 
 <environment_variables>
@@ -80,6 +92,11 @@ Required by this module:
 **Gemini Integration:**
 - `generateMural(imageBase64, mimeType, prompt)` → `Promise<Buffer>` - Generate image via Gemini
 - `refinePromptWithChat(chatHistory, userMessage, imageData?, currentPrompt?)` → `Promise<ChatRefinementResponse>` - Conversational prompt refinement
+
+**Batch Descriptions (Gemini Batch API):**
+- `createBatchJobForMural(muralId)` → `Promise<string>` - Create batch job for 1 mural, returns batchJobId
+- `pollBatchJobs()` → `Promise<{pending, running, completed, failed, expired, cancelled}>` - Poll all pending/running jobs
+- `processCompletedJobs()` → `Promise<{processed, failed, errors}>` - Parse rawResponse and update ReferenceMural
 
 **File Operations:**
 - `saveGeneratedMural(imageData, basePath, collection, design, colorVariant)` → `{filePath, fileName}` - Save generated image
