@@ -12,8 +12,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import * as path from 'path';
 
-const BATCH_REQ_JSON_TEMP = path.join(process.cwd(), '../../../tmp/batch-requests-json/');
-const BATCH_JOB_DETAILS_TEMP = path.join(process.cwd(), '../../../tmp/batch-job-details/');
+const BATCH_REQ_JSON_TEMP = path.join(process.cwd(), '/tmp/batch-requests-json/');
+const BATCH_JOB_DETAILS_TEMP = path.join(process.cwd(), '/tmp/batch-job-details/');
 
 // Singleton Gemini client
 let geminiClient: GoogleGenAI | null = null;
