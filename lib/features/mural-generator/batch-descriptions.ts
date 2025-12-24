@@ -10,6 +10,10 @@ import {
 } from './prompts';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
+import * as path from 'path';
+
+const BATCH_REQ_JSON_TEMP = path.join(process.cwd(), '../../../tmp/batch-requests-json/');
+const BATCH_JOB_DETAILS_TEMP = path.join(process.cwd(), '../../../tmp/batch-job-details/');
 
 // Singleton Gemini client
 let geminiClient: GoogleGenAI | null = null;
@@ -100,7 +104,7 @@ export async function createBatchJobForMural(muralId: string): Promise<string> {
   console.log(`Batch job created: ${batchJob.name}`);
 
   // Save request payload to file for debugging (without polluting console)
-  const tmpDir = '/tmp/batch-requests';
+  const tmpDir = BATCH_REQ_JSON_TEMP;
   if (!existsSync(tmpDir)) {
     await mkdir(tmpDir, { recursive: true });
   }
@@ -108,6 +112,15 @@ export async function createBatchJobForMural(muralId: string): Promise<string> {
   const debugFilePath = `${tmpDir}/request-${muralId}-${timestamp}.json`;
   await writeFile(debugFilePath, JSON.stringify(requestPayload, null, 2));
   console.log(`Request payload saved to: ${debugFilePath}`);
+
+  if (!existsSync(BATCH_JOB_DETAILS_TEMP)) {
+    await mkdir(BATCH_JOB_DETAILS_TEMP, { recursive: true });
+  }
+
+  // Save batch job details to file for debugging
+  const batchJobFilePath = `${BATCH_JOB_DETAILS_TEMP}/batch-job-${muralId}-${timestamp}.json`;
+  await writeFile(batchJobFilePath, JSON.stringify(batchJob, null, 2));
+  console.log(`Batch job details saved to: ${batchJobFilePath}`);
 
   // Save batch job to database with full request payload
   await db.batchDescriptionJob.create({

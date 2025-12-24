@@ -1,43 +1,43 @@
 ===========================================
 AI Analyze Prompt Pipeline Test
-Started: 12/23/2025, 12:03:36 PM
+Started: 12/24/2025, 11:38:15 AM
 ===========================================
-[12:03:36.545] ============================================================
-[12:03:36.546] AI Analyze Prompt - Pipeline Test
-[12:03:36.546] ============================================================
-[12:03:36.546] 
-[12:03:36.546] 
-[12:03:36.546] [STEP 1] Environment Setup
-[12:03:36.546]   - Action: Loading .env.local file
-[12:03:36.546] ✓ Loaded .env.local file
-[12:03:36.546] ✓ GEMINI_API_KEY found
-[12:03:36.546]   - GEMINI_API_KEY: ****...mznA
-[12:03:36.546]   - GEMINI_CHAT_MODEL: gemini-2.5-flash
-[12:03:36.546] 
-[12:03:36.546] [STEP 2] Image Loading
-[12:03:36.546]   - Image path: /Users/ishan-aiworkspace/Documents/apps/mural-generator/tmp/trial-mural.png
-[12:03:36.549] ✓ Image exists: /Users/ishan-aiworkspace/Documents/apps/mural-generator/tmp/trial-mural.png
-[12:03:36.549]   - Action: Reading image file
-[12:03:36.549] ✓ Image loaded successfully
-[12:03:36.559] ✓ Image size: 846,895 bytes
-[12:03:36.559]   - Image size (bytes): 846895
-[12:03:36.559] ✓ MIME type: image/png
-[12:03:36.559]   - MIME type detected: image/png
-[12:03:36.559]   - Action: Converting to base64
-[12:03:36.559] ✓ Base64 conversion complete
-[12:03:36.559]   - Base64 length: 1129196
-[12:03:36.559] 
-[12:03:36.559] [STEP 3] Prepare Message
-[12:03:36.559] ✓ Message: "Please analyze this mural image..."
-[12:03:36.559]   - User message: Please analyze this mural image and create a detailed generation prompt for a NEW original mural inspired by its artistic characteristics.
-[12:03:36.559] 
-[12:03:36.559] [STEP 4] Call Gemini API
-[12:03:36.559] → Model: gemini-2.5-flash
-[12:03:36.559] → System Instruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION
-[12:03:36.559] → Contents: 1 user message with image
-[12:03:36.559] ⏳ Waiting for API response...
-[12:03:36.559]   - Function: refinePromptWithChat()
-[12:03:36.559]   - Parameters: {
+[11:38:15.867] ============================================================
+[11:38:15.868] AI Analyze Prompt - Pipeline Test
+[11:38:15.868] ============================================================
+[11:38:15.868] 
+[11:38:15.868] 
+[11:38:15.868] [STEP 1] Environment Setup
+[11:38:15.868]   - Action: Loading .env.local file
+[11:38:15.869] ✓ Loaded .env.local file
+[11:38:15.869] ✓ GEMINI_API_KEY found
+[11:38:15.869]   - GEMINI_API_KEY: ****...uPp0
+[11:38:15.869]   - GEMINI_CHAT_MODEL: gemini-2.5-flash
+[11:38:15.869] 
+[11:38:15.869] [STEP 2] Image Loading
+[11:38:15.869]   - Image path: /Users/ishan-aiworkspace/Documents/apps/mural-generator/tmp/trial-mural.png
+[11:38:16.377] ✓ Image exists: /Users/ishan-aiworkspace/Documents/apps/mural-generator/tmp/trial-mural.png
+[11:38:16.377]   - Action: Reading image file
+[11:38:16.379] ✓ Image loaded successfully
+[11:38:16.410] ✓ Image size: 846,895 bytes
+[11:38:16.410]   - Image size (bytes): 846895
+[11:38:16.410] ✓ MIME type: image/png
+[11:38:16.410]   - MIME type detected: image/png
+[11:38:16.410]   - Action: Converting to base64
+[11:38:16.410] ✓ Base64 conversion complete
+[11:38:16.410]   - Base64 length: 1129196
+[11:38:16.410] 
+[11:38:16.410] [STEP 3] Prepare Message
+[11:38:16.410] ✓ Message: "Please analyze this mural image..."
+[11:38:16.410]   - User message: Please analyze this mural image and create a detailed generation prompt for a NEW original mural inspired by its artistic characteristics.
+[11:38:16.410] 
+[11:38:16.410] [STEP 4] Call Gemini API
+[11:38:16.410] → Model: gemini-2.5-flash
+[11:38:16.410] → System Instruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION
+[11:38:16.410] → Contents: 1 user message with image
+[11:38:16.410] ⏳ Waiting for API response...
+[11:38:16.410]   - Function: refinePromptWithChat()
+[11:38:16.410]   - Parameters: {
   "chatHistory": "[] (empty)",
   "userMessage": "Please analyze this mural image and create a detai...",
   "imageData": {
@@ -46,100 +46,49 @@ Started: 12/23/2025, 12:03:36 PM
   },
   "currentPrompt": "undefined"
 }
-[12:03:36.559]   - Model: gemini-2.5-flash
-[12:03:36.559]   - System Instruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION (see prompts.ts:79-102)
-[12:03:36.559]   - Sending API request: 2025-12-23T06:33:36.559Z
-[12:03:53.749] 
-[12:03:53.749] ============================================================
-[12:03:53.749] ERROR
-[12:03:53.749] ============================================================
-[12:03:53.749] ✕ Test failed with error:
-[12:03:53.749] ✕ Message: [
-  {
-    "expected": "string",
-    "code": "invalid_type",
-    "path": [
-      "conversationalResponse"
-    ],
-    "message": "Invalid input: expected string, received undefined"
-  },
-  {
-    "expected": "string",
-    "code": "invalid_type",
-    "path": [
-      "refinedPrompt"
-    ],
-    "message": "Invalid input: expected string, received undefined"
-  },
-  {
-    "expected": "array",
-    "code": "invalid_type",
-    "path": [
-      "changesSummary"
-    ],
-    "message": "Invalid input: expected array, received undefined"
-  }
-]
-[12:03:53.749]   - Error message: [
-  {
-    "expected": "string",
-    "code": "invalid_type",
-    "path": [
-      "conversationalResponse"
-    ],
-    "message": "Invalid input: expected string, received undefined"
-  },
-  {
-    "expected": "string",
-    "code": "invalid_type",
-    "path": [
-      "refinedPrompt"
-    ],
-    "message": "Invalid input: expected string, received undefined"
-  },
-  {
-    "expected": "array",
-    "code": "invalid_type",
-    "path": [
-      "changesSummary"
-    ],
-    "message": "Invalid input: expected array, received undefined"
-  }
-]
-[12:03:53.749]   - Error stack: ZodError: [
-  {
-    "expected": "string",
-    "code": "invalid_type",
-    "path": [
-      "conversationalResponse"
-    ],
-    "message": "Invalid input: expected string, received undefined"
-  },
-  {
-    "expected": "string",
-    "code": "invalid_type",
-    "path": [
-      "refinedPrompt"
-    ],
-    "message": "Invalid input: expected string, received undefined"
-  },
-  {
-    "expected": "array",
-    "code": "invalid_type",
-    "path": [
-      "changesSummary"
-    ],
-    "message": "Invalid input: expected array, received undefined"
-  }
-]
-    at refinePromptWithChat (/Users/ishan-aiworkspace/Documents/apps/mural-generator/lib/features/mural-generator/gemini.ts:198:41)
-    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    at async runTest (/Users/ishan-aiworkspace/Documents/apps/mural-generator/test-analyze-pipeline.ts:198:20)
-[12:03:53.749] ============================================================
-[12:03:53.749] 
-[12:03:53.749] ============================================================
+[11:38:16.410]   - Model: gemini-2.5-flash
+[11:38:16.410]   - System Instruction: CHAT_REFINEMENT_SYSTEM_INSTRUCTION (see prompts.ts:79-102)
+[11:38:16.410]   - Sending API request: 2025-12-24T06:08:16.410Z
+[11:38:25.641] 
+[11:38:25.642] [STEP 5] Process Response
+[11:38:25.642] ✓ Response received
+[11:38:25.642] ✓ JSON parsed successfully
+[11:38:25.642] ✓ Schema validation passed
+[11:38:25.642]   - Response time: 9.23 seconds
+[11:38:25.642]   - Raw response: {
+  "conversationalResponse": "I've carefully analyzed the beautiful tropical landscape mural you provided. I focused on its serene composition, muted watercolor style, and earthy color palette to create a detailed prompt for a new mural.",
+  "refinedPrompt": "A serene tropical landscape mural, rendered in a classic watercolor painting style with soft, blended brushstrokes and an aged, fresco-like texture. The foreground features a rich layering of large, detailed tropical leaves, including broad fan palms, monstera leaves, and elongated palm fronds, in muted sage green, dusty blue-green, and olive tones. A gentle, winding river flows through the mid-ground, reflecting soft, diffused light, bordered by gently rolling hills and riverbanks covered in lush, yet understated, foliage. Scattered elegant palm trees of varying heights stand gracefully along the river and on the hills. In the distant background, subtle, layered mountains fade into a hazy, warm beige sky with an antique, cracked plaster texture, enhanced by faint, shimmering metallic gold or bronze accents. The overall color palette is earthy and subdued, featuring sandy beiges, warm ochres, soft browns, and creamy whites, creating a tranquil, exotic, and timeless ambiance. The lighting is soft and natural, emphasizing the peaceful depth of the scene.",
+  "changesSummary": []
+}
+[11:38:25.642]   - Parsed successfully: true
+[11:38:25.642]   - Schema validation: PASSED
+[11:38:25.642] 
+[11:38:25.642] ============================================================
+[11:38:25.642] RESULTS
+[11:38:25.642] ============================================================
+[11:38:25.642] 
+[11:38:25.642] Conversational Response:
+[11:38:25.642] "I've carefully analyzed the beautiful tropical landscape mural you provided. I focused on its serene composition, muted watercolor style, and earthy color palette to create a detailed prompt for a new mural."
+[11:38:25.642] 
+[11:38:25.642] Refined Prompt (length: 1068 chars):
+[11:38:25.642] "A serene tropical landscape mural, rendered in a classic watercolor painting style with soft, blended brushstrokes and an aged, fresco-like texture. The foreground features a rich layering of large, d..."
+[11:38:25.642] 
+[11:38:25.642] Changes Summary:
+[11:38:25.642] [] (empty for initial analysis)
+[11:38:25.642] 
+[11:38:25.642]   - conversationalResponse: I've carefully analyzed the beautiful tropical landscape mural you provided. I focused on its serene composition, muted watercolor style, and earthy color palette to create a detailed prompt for a new mural.
+[11:38:25.642]   - refinedPrompt length: 1068
+[11:38:25.642]   - refinedPrompt content: 
+---
+A serene tropical landscape mural, rendered in a classic watercolor painting style with soft, blended brushstrokes and an aged, fresco-like texture. The foreground features a rich layering of large, detailed tropical leaves, including broad fan palms, monstera leaves, and elongated palm fronds, in muted sage green, dusty blue-green, and olive tones. A gentle, winding river flows through the mid-ground, reflecting soft, diffused light, bordered by gently rolling hills and riverbanks covered in lush, yet understated, foliage. Scattered elegant palm trees of varying heights stand gracefully along the river and on the hills. In the distant background, subtle, layered mountains fade into a hazy, warm beige sky with an antique, cracked plaster texture, enhanced by faint, shimmering metallic gold or bronze accents. The overall color palette is earthy and subdued, featuring sandy beiges, warm ochres, soft browns, and creamy whites, creating a tranquil, exotic, and timeless ambiance. The lighting is soft and natural, emphasizing the peaceful depth of the scene.
+---
+[11:38:25.642]   - changesSummary: []
+[11:38:25.642] ============================================================
+[11:38:25.642] 
+[11:38:25.642] ============================================================
+[11:38:25.642] ✓ Test completed successfully!
 ===========================================
 Test completed
-Completed: 12/23/2025, 12:03:53 PM
-Total duration: 17.21 seconds
+Completed: 12/24/2025, 11:38:25 AM
+Total duration: 9.79 seconds
 ===========================================
