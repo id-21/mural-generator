@@ -1,20 +1,29 @@
 // API route to generate a new mural
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { generateMural } from '@/lib/features/mural-generator/gemini';
+import { generateMural, convertJsonToNarrativePrompt } from '@/lib/features/mural-generator/gemini';
 import {
   readImageAsBase64,
   getMimeType,
   saveGeneratedMural,
 } from '@/lib/features/mural-generator/storage';
+import { UnifiedArtisticPromptInterface } from '@/lib/features/mural-generator/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const { referenceMuralId, prompt, isCustomPrompt } = await request.json();
+    const { referenceMuralId, artisticPromptJson, prompt, isCustomPrompt } = await request.json();
 
-    if (!referenceMuralId || !prompt) {
+    // Support both old (prompt) and new (artisticPromptJson) formats
+    if (!referenceMuralId) {
       return NextResponse.json(
-        { error: 'referenceMuralId and prompt are required' },
+        { error: 'referenceMuralId is required' },
+        { status: 400 }
+      );
+    }
+
+    if (!artisticPromptJson && !prompt) {
+      return NextResponse.json(
+        { error: 'Either artisticPromptJson or prompt is required' },
         { status: 400 }
       );
     }
@@ -38,11 +47,25 @@ export async function POST(request: NextRequest) {
     const imageBase64 = await readImageAsBase64(referenceMural.localFilePath);
     const mimeType = getMimeType(referenceMural.fileName);
 
+    // Determine which prompt to use
+    let narrativePrompt: string;
+
+    if (artisticPromptJson) {
+      // New flow: Convert structured JSON to narrative
+      console.log('Converting structured JSON to narrative prompt...');
+      narrativePrompt = await convertJsonToNarrativePrompt(artisticPromptJson.artisticPrompt);
+      console.log('Narrative prompt generated successfully');
+    } else {
+      // Legacy flow: Use prompt directly
+      console.log('Using legacy prompt flow');
+      narrativePrompt = prompt;
+    }
+
     // Generate new mural with Gemini
     const generatedImageBuffer = await generateMural(
       imageBase64,
       mimeType,
-      prompt
+      narrativePrompt
     );
 
     // Save to local filesystem
@@ -66,13 +89,15 @@ export async function POST(request: NextRequest) {
     const generatedMural = await db.generatedMural.create({
       data: {
         referenceMuralId: referenceMural.id,
-        prompt,
+        prompt: narrativePrompt,  // Store the narrative prompt used for generation
         isCustomPrompt: isCustomPrompt || false,
         localFilePath: filePath,
         fileName,
         modelUsed: process.env.GEMINI_MODEL || 'gemini-pro-3',
         generationParams: JSON.stringify({
           timestamp: new Date().toISOString(),
+          // Store original structured JSON if provided
+          artisticPromptJson: artisticPromptJson || undefined,
         }),
       },
       include: {

@@ -6,7 +6,10 @@ import { readImageAsBase64, getMimeType } from './storage';
 import {
   artisticDescriptionSchema,
   ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION,
-  ArtisticDescription
+  ArtisticDescription,
+  unifiedArtisticPromptSchema,
+  UNIFIED_ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION,
+  UnifiedArtisticPrompt
 } from './prompts';
 import {
   BatchConflictStrategy,
@@ -270,8 +273,8 @@ export async function createBatchJobsWithStrategy(
       }
 
       if (shouldCreate) {
-        // Create new batch job (using existing function)
-        await createBatchJobForMural(mural.id);
+        // Create new batch job (using unified schema)
+        await createBatchJobForMuralUnified(mural.id);
         jobsCreated++;
       }
 
@@ -295,6 +298,7 @@ export async function createBatchJobsWithStrategy(
 /**
  * Create a batch job for generating artistic description for a single mural
  * Uses inline request approach (1 mural = 1 batch job)
+ * @deprecated Use createBatchJobForMuralUnified instead
  */
 export async function createBatchJobForMural(muralId: string): Promise<string> {
   console.log(`Creating batch job for mural: ${muralId}`);
@@ -345,6 +349,99 @@ export async function createBatchJobForMural(muralId: string): Promise<string> {
     }],
     config: {
       displayName: `artistic-desc-${muralId}`
+    }
+  };
+
+  // Create batch job with inline request
+  const batchJob = await ai.batches.create(requestPayload);
+
+  console.log(`Batch job created: ${batchJob.name}`);
+
+  // Save request payload to file for debugging (without polluting console)
+  const tmpDir = BATCH_REQ_JSON_TEMP;
+  if (!existsSync(tmpDir)) {
+    await mkdir(tmpDir, { recursive: true });
+  }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const debugFilePath = `${tmpDir}/request-${muralId}-${timestamp}.json`;
+  await writeFile(debugFilePath, JSON.stringify(requestPayload, null, 2));
+  console.log(`Request payload saved to: ${debugFilePath}`);
+
+  if (!existsSync(BATCH_JOB_DETAILS_TEMP)) {
+    await mkdir(BATCH_JOB_DETAILS_TEMP, { recursive: true });
+  }
+
+  // Save batch job details to file for debugging
+  const batchJobFilePath = `${BATCH_JOB_DETAILS_TEMP}/batch-job-${muralId}-${timestamp}.json`;
+  await writeFile(batchJobFilePath, JSON.stringify(batchJob, null, 2));
+  console.log(`Batch job details saved to: ${batchJobFilePath}`);
+
+  // Save batch job to database with full request payload
+  await db.batchDescriptionJob.create({
+    data: {
+      referenceMuralId: muralId,
+      batchJobId: batchJob.name,
+      status: 'JOB_STATE_PENDING',
+      requestPayload: JSON.stringify(requestPayload)
+    }
+  });
+
+  return batchJob.name;
+}
+
+/**
+ * Create a batch job for generating unified artistic description for a single mural
+ * Uses the new unified schema with conversationalResponse, artisticPrompt, and changesSummary
+ */
+export async function createBatchJobForMuralUnified(muralId: string): Promise<string> {
+  console.log(`Creating unified batch job for mural: ${muralId}`);
+
+  // Get mural from database
+  const mural = await db.referenceMural.findUnique({
+    where: { id: muralId }
+  });
+
+  if (!mural) {
+    throw new Error(`Reference mural not found: ${muralId}`);
+  }
+
+  // Read image as base64
+  const base64Image = await readImageAsBase64(mural.localFilePath);
+  const mimeType = getMimeType(mural.fileName);
+
+  console.log(`Image loaded: ${mural.fileName} (${mimeType})`);
+
+  // Initialize Gemini client
+  const ai = getGeminiClient();
+  const model = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
+
+  // Convert Zod schema to JSON Schema and remove $schema field
+  const jsonSchema = zodToJsonSchema(unifiedArtisticPromptSchema) as any;
+  delete jsonSchema.$schema;  // Remove $schema field that Gemini doesn't accept
+
+  // Prepare request payload
+  const requestPayload = {
+    model,
+    src: [{  // Single-item array (one mural)
+      contents: [{
+        parts: [{
+          inlineData: {
+            mimeType: mimeType,
+            data: base64Image
+          }
+        }],
+        role: 'user'
+      }],
+      config: {
+        systemInstruction: {
+          parts: [{ text: UNIFIED_ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION }]
+        },
+        responseMimeType: 'application/json',
+        responseSchema: jsonSchema
+      }
+    }],
+    config: {
+      displayName: `artistic-desc-unified-${muralId}`
     }
   };
 
@@ -478,6 +575,7 @@ export async function pollBatchJobs(): Promise<{
 
 /**
  * Process completed batch jobs - parse results and update ReferenceMural
+ * @deprecated Use processCompletedJobsUnified instead
  */
 export async function processCompletedJobs(): Promise<{
   processed: number;
@@ -543,6 +641,97 @@ export async function processCompletedJobs(): Promise<{
       });
 
       console.log(`Processed description for mural: ${job.referenceMuralId}`);
+      processed++;
+
+    } catch (error) {
+      console.error(`Error processing job ${job.id}:`, error);
+      failed++;
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      errors.push(`Mural ${job.referenceMuralId}: ${errorMessage}`);
+
+      // Update job with error message
+      await db.batchDescriptionJob.update({
+        where: { id: job.id },
+        data: {
+          errorMessage: errorMessage
+        }
+      });
+    }
+  }
+
+  console.log(`Processing complete: ${processed} processed, ${failed} failed`);
+
+  return { processed, failed, errors };
+}
+
+/**
+ * Process completed batch jobs using unified schema - parse results and update ReferenceMural
+ */
+export async function processCompletedJobsUnified(): Promise<{
+  processed: number;
+  failed: number;
+  errors: string[];
+}> {
+  console.log('Processing completed unified batch jobs...');
+
+  // Query successful jobs that haven't been processed yet
+  const jobs = await db.batchDescriptionJob.findMany({
+    where: {
+      status: 'JOB_STATE_SUCCEEDED',
+      rawResponse: { not: null },
+      referenceMural: {
+        artisticDescription: null
+      }
+    },
+    include: {
+      referenceMural: true
+    }
+  });
+
+  console.log(`Found ${jobs.length} completed jobs to process`);
+
+  let processed = 0;
+  let failed = 0;
+  const errors: string[] = [];
+
+  for (const job of jobs) {
+    try {
+      // Parse raw response
+      const batchJob = JSON.parse(job.rawResponse!);
+
+      // Extract inline response
+      if (!batchJob.dest?.inlinedResponses || batchJob.dest.inlinedResponses.length === 0) {
+        throw new Error('No inlined responses found in batch job');
+      }
+
+      const inlineResponse = batchJob.dest.inlinedResponses[0];
+
+      // Check for response error
+      if (inlineResponse.error) {
+        throw new Error(`Response error: ${JSON.stringify(inlineResponse.error)}`);
+      }
+
+      // Parse JSON response text
+      if (!inlineResponse.response?.text) {
+        throw new Error('No response text found');
+      }
+
+      const descriptionJson = JSON.parse(inlineResponse.response.text);
+
+      // Validate with unified Zod schema
+      const validated: UnifiedArtisticPrompt = unifiedArtisticPromptSchema.parse(descriptionJson);
+
+      // Update ReferenceMural with unified description
+      await db.referenceMural.update({
+        where: { id: job.referenceMuralId },
+        data: {
+          artisticDescription: JSON.stringify(validated),
+          descriptionGeneratedAt: new Date()
+        }
+      });
+
+      console.log(`Processed unified description for mural: ${job.referenceMuralId}`);
       processed++;
 
     } catch (error) {

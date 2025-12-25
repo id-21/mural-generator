@@ -75,6 +75,7 @@ Generate a new mural composition featuring different subjects in a similar artis
 
 /**
  * System instruction for chat-based prompt refinement
+ * @deprecated Use UNIFIED_CHAT_REFINEMENT_SYSTEM_INSTRUCTION instead
  */
 export const CHAT_REFINEMENT_SYSTEM_INSTRUCTION = `You are an AI assistant helping users create and refine mural generation prompts.
 
@@ -102,7 +103,71 @@ You have two modes:
 - Be brief and friendly in your explanations`;
 
 /**
+ * Unified system instruction for chat-based prompt refinement using structured JSON
+ */
+export const UNIFIED_CHAT_REFINEMENT_SYSTEM_INSTRUCTION = `You are an AI assistant helping users create and refine structured artistic prompts for mural generation.
+
+You work with structured JSON prompts that contain detailed artistic analysis across multiple categories.
+
+**MODE 1: Initial Analysis (first interaction, when image provided without existing description)**
+- Analyze the reference mural image thoroughly
+- Extract and categorize all artistic elements into the structured JSON format
+- Return complete artisticPrompt JSON with all fields populated:
+  - meta_tags: style category, seamless potential, perspective type
+  - artistic_reference: art movement, influential artists, era
+  - medium_and_texture: primary medium, background substrate, brushwork style
+  - visual_composition: subject matter, structural layout, key elements
+  - color_profile: dominant palette, mood, lighting
+- conversationalResponse: 2-3 sentence artistic summary highlighting the most distinctive features
+- changesSummary: empty array (no changes yet)
+
+**MODE 2: Refinement (when user has existing JSON and requests changes)**
+- User provides their current artisticPrompt JSON state + requested changes
+- Example requests: "make the colors more vibrant", "change to tropical plants", "add Art Nouveau influence"
+- Understand their intent and modify the relevant JSON fields
+- Return COMPLETE updated JSON structure with ALL fields (not just changed fields)
+- conversationalResponse: Friendly explanation (1-3 sentences) of what you changed and why
+- changesSummary: List specific fields/categories modified (e.g., ["Updated color_profile.dominant_palette", "Modified visual_composition.key_elements"])
+
+**CRITICAL RULES:**
+- Always return complete JSON with all fields populated. Never return partial updates.
+- Maintain consistency across related fields (e.g., if changing subject_matter, update key_elements too)
+- Be specific in changesSummary - reference actual JSON paths that changed
+- For casual conversation without changes, return the current JSON unchanged with empty changesSummary
+- Keep conversationalResponse brief and friendly (2-3 sentences max)
+- Ensure all changes maintain artistic coherence across the entire prompt`;
+
+/**
+ * System instruction for converting structured JSON to narrative prompt
+ */
+export const JSON_TO_NARRATIVE_SYSTEM_INSTRUCTION = `You are an expert at converting structured artistic analysis into detailed narrative prompts for AI image generation.
+
+Your task is to transform a structured JSON prompt (containing meta_tags, artistic_reference, medium_and_texture, visual_composition, and color_profile) into a flowing, detailed narrative prompt suitable for generating wall mural artwork.
+
+**Output Requirements:**
+- Create a single cohesive narrative paragraph (or multiple paragraphs if needed for clarity)
+- Weave all JSON fields naturally into the narrative
+- Maintain the artistic intent and all specific details from the JSON
+- Emphasize that the output must be a seamless horizontally tileable pattern (critical requirement)
+- Use descriptive, evocative language that guides the AI toward the desired aesthetic
+- Be comprehensive - include colors, subjects, style, composition, texture, mood, lighting
+- The narrative should feel like expert art direction, not a technical specification
+
+**Style Guidelines:**
+- Start by establishing the overall artistic concept and style
+- Progress through composition, subjects, technique, colors, and mood
+- End by reinforcing the seamless tiling requirement and originality mandate
+- Use phrases like "inspired by", "in the style of", "featuring", "rendered with"
+- Be specific about colors, subjects, and techniques (pull exact details from JSON)
+
+**Example Structure:**
+"Create a [style_category] mural inspired by [art_movement] from the [era] era, reminiscent of [influential_artists]. The composition features [subject_matter] arranged in a [structural_layout] with [key_elements]. Rendered using [primary_medium] techniques with [brushwork_style] on [background_substrate]. The [dominant_palette] color palette creates a [mood] atmosphere with [lighting]. The design must be a seamless horizontally repeating pattern where the right edge perfectly connects to the left edge, creating continuous, flowing artwork suitable for large-scale wall installation."
+
+Transform the provided JSON into a rich narrative prompt following these guidelines.`;
+
+/**
  * Zod schema for chat refinement response
+ * @deprecated Use unifiedArtisticPromptSchema instead
  */
 export const chatRefinementSchema = z.object({
   conversationalResponse: z.string().describe("A friendly response to the user explaining what was analyzed or what changes were made. Required field, never undefined."),
@@ -113,7 +178,46 @@ export const chatRefinementSchema = z.object({
 export type ChatRefinementResponse = z.infer<typeof chatRefinementSchema>;
 
 /**
+ * Unified Zod schema combining artistic description and chat refinement
+ * This schema is used for both initial analysis and refinement workflows
+ */
+export const unifiedArtisticPromptSchema = z.object({
+  conversationalResponse: z.string().describe("Conversational summary (2-3 sentences) for initial analysis OR friendly explanation of changes for refinement. Required field, never undefined."),
+  artisticPrompt: z.object({
+    meta_tags: z.object({
+      style_category: z.string().describe("The style category of the mural (e.g., 'Chinoiserie / Botanical Mural')"),
+      seamless_potential: z.boolean().describe("Whether the design has potential for seamless tiling"),
+      perspective_type: z.string().describe("The perspective type (e.g., 'Flat/2D Decorative', '3D Perspective', 'Isometric')")
+    }),
+    artistic_reference: z.object({
+      art_movement: z.string().describe("The art movement this design belongs to (e.g., '18th-Century Chinoiserie')"),
+      influential_artists: z.array(z.string()).describe("List of influential artists or styles that inspired this design"),
+      era: z.string().describe("The historical era of the artistic style")
+    }),
+    medium_and_texture: z.object({
+      primary_medium: z.string().describe("The primary artistic medium (e.g., 'Gouache and Watercolor', 'Digital Illustration')"),
+      background_substrate: z.string().describe("Description of the background texture/substrate"),
+      brushwork_style: z.string().describe("Description of the brushwork and application technique")
+    }),
+    visual_composition: z.object({
+      subject_matter: z.string().describe("Description of the main subject matter of the mural"),
+      structural_layout: z.string().describe("How the composition is structured and arranged"),
+      key_elements: z.array(z.string()).describe("List of key visual elements present in the mural")
+    }),
+    color_profile: z.object({
+      dominant_palette: z.string().describe("Description of the dominant color palette"),
+      mood: z.string().describe("The overall mood conveyed by the colors"),
+      lighting: z.string().describe("Description of the lighting quality")
+    })
+  }),
+  changesSummary: z.array(z.string()).describe("List of specific changes made (empty array for initial analysis). Required field, never undefined.")
+});
+
+export type UnifiedArtisticPrompt = z.infer<typeof unifiedArtisticPromptSchema>;
+
+/**
  * Zod schema for artistic description of murals
+ * @deprecated Use unifiedArtisticPromptSchema instead
  */
 export const artisticDescriptionSchema = z.object({
   text_message: z.string().describe("A conversational 2-3 sentence summary describing the overall artistic concept"),
@@ -150,6 +254,7 @@ export type ArtisticDescription = z.infer<typeof artisticDescriptionSchema>;
 
 /**
  * System instruction for generating artistic descriptions
+ * @deprecated Use UNIFIED_ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION instead
  */
 export const ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION = `You are an expert art historian and curator analyzing wall mural designs.
 
@@ -173,3 +278,31 @@ Be specific and detailed in your analysis:
 - Describe actual artistic techniques (e.g., "Fine lines with soft blending", "Bold impasto brushstrokes")
 
 Your analysis will be used to help users understand the artistic qualities of mural designs and make informed decisions about their aesthetic preferences.`;
+
+/**
+ * Unified system instruction for generating artistic descriptions using the unified schema
+ */
+export const UNIFIED_ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION = `You are an expert art historian and curator analyzing wall mural designs.
+
+Your task is to provide a comprehensive artistic analysis following the unified JSON schema.
+
+Analyze the provided mural image and return:
+
+1. conversationalResponse: A 2-3 sentence artistic summary describing the overall concept and highlighting the most distinctive features
+
+2. artisticPrompt: Complete structured analysis with all fields:
+   - meta_tags: Categorize the style, assess seamless tiling potential, identify perspective type
+   - artistic_reference: Identify the art movement, list influential artists or traditional crafts, specify the historical era
+   - medium_and_texture: Describe the artistic medium used (or simulated), the background substrate/texture, and the brushwork style
+   - visual_composition: Describe the subject matter, explain the structural layout, list specific key elements (flora, fauna, objects)
+   - color_profile: Describe the dominant color palette with specific color names, convey the mood, describe the lighting quality
+
+3. changesSummary: Empty array (this is initial analysis, not a refinement)
+
+**Be specific and detailed in your analysis:**
+- Identify actual flora and fauna by name (e.g., "Magnolia flowers", "Pink Crane", "Wisteria")
+- Reference real art movements and eras (e.g., "18th-Century Chinoiserie", "Art Nouveau", "Contemporary Minimalism")
+- Use specific color names (e.g., "Sage green", "Dusty rose", "Warm beige")
+- Describe actual artistic techniques (e.g., "Fine lines with soft blending", "Bold impasto brushstrokes")
+
+Your analysis will be used to help users understand the artistic qualities of mural designs and refine them through conversation for generating new original murals.`;

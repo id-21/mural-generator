@@ -2,13 +2,13 @@
 // Process completed batch jobs - parse results and update ReferenceMural
 // This is a MANUAL trigger endpoint (called via CLI or UI button)
 import { NextRequest, NextResponse } from 'next/server';
-import { processCompletedJobs } from '@/lib/features/mural-generator/batch-descriptions';
+import { processCompletedJobsUnified } from '@/lib/features/mural-generator/batch-descriptions';
 
 export async function POST(request: NextRequest) {
   try {
     console.log('Processing completed batch jobs...');
 
-    const result = await processCompletedJobs();
+    const result = await processCompletedJobsUnified();
 
     return NextResponse.json({
       message: `Processed ${result.processed} descriptions, ${result.failed} failed`,

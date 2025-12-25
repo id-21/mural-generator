@@ -2,7 +2,7 @@
 // Test endpoint - creates batch job for just ONE mural
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { createBatchJobForMural } from '@/lib/features/mural-generator/batch-descriptions';
+import { createBatchJobForMuralUnified } from '@/lib/features/mural-generator/batch-descriptions';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No murals without descriptions found' }, { status: 404 });
     }
 
-    const batchJobId = await createBatchJobForMural(mural.id);
+    const batchJobId = await createBatchJobForMuralUnified(mural.id);
 
     return NextResponse.json({
       message: `Created batch job for 1 mural`,
