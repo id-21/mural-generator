@@ -8,8 +8,12 @@ export async function POST(request: NextRequest) {
   try {
     // Find ONE mural without description
     const mural = await db.referenceMural.findFirst({
-      where: { artisticDescription: null }
+      where: { 
+        artisticDescription: null,
+        batchDescriptionJob: null  // No batch job exists
+      }
     });
+
 
     if (!mural) {
       return NextResponse.json({ error: 'No murals without descriptions found' }, { status: 404 });

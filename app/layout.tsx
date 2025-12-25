@@ -30,6 +30,9 @@ export default function RootLayout({
                 <Link href="/browse" className="text-gray-700 hover:text-blue-600 transition">
                   Browse
                 </Link>
+                <Link href="/reference-gallery" className="text-gray-700 hover:text-blue-600 transition">
+                  References
+                </Link>
                 <Link href="/generate" className="text-gray-700 hover:text-blue-600 transition">
                   Generate
                 </Link>

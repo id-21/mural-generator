@@ -1,5 +1,7 @@
 <system_context>
 Batch artistic description API endpoints for generating structured AI descriptions of reference murals using Google Gemini Batch API. This feature uses a database-driven approach with separate batch job tracking for robust failure handling and reprocessing.
+
+**UPDATED (2025-12-25):** Now uses unified JSON schema (`unifiedArtisticPromptSchema`) that combines artistic analysis with conversational responses and change tracking. This schema is shared across batch descriptions, chat refinement, and image generation workflows.
 </system_context>
 
 <file_map>
@@ -72,9 +74,11 @@ try {
 ### Business Logic Delegation
 
 Endpoints are thin wrappers - delegate to `lib/features/mural-generator/batch-descriptions.ts`:
-- `createBatchJobForMural(muralId)` - Creates Gemini batch job + DB record
-- `pollBatchJobs()` - Polls all pending/running jobs, returns stats
-- `processCompletedJobs()` - Parses rawResponse and updates ReferenceMural
+- **NEW:** `createBatchJobForMuralUnified(muralId)` - Creates Gemini batch job using unified schema + DB record
+- **NEW:** `processCompletedJobsUnified()` - Parses rawResponse using unified schema and updates ReferenceMural
+- `pollBatchJobs()` - Polls all pending/running jobs, returns stats (unchanged)
+- **DEPRECATED:** `createBatchJobForMural(muralId)` - Legacy function (still functional)
+- **DEPRECATED:** `processCompletedJobs()` - Legacy function (still functional)
 
 **Example:** `poll/route.ts:6-13`
 ```typescript
@@ -196,7 +200,9 @@ curl -X POST http://localhost:3000/api/batch-descriptions/process
 - One-to-one with ReferenceMural
 
 **ReferenceMural** (updated)
-- `artisticDescription` (String?) - Parsed JSON description
+- `artisticDescription` (String?) - Parsed JSON description using unified schema format
+  - **NEW FORMAT:** Contains `conversationalResponse`, `artisticPrompt` (nested object), and `changesSummary` (array)
+  - **LEGACY FORMAT:** Contains `text_message` and `json_prompt` (still supported)
 - `descriptionGeneratedAt` (DateTime?) - When description saved
 - `batchDescriptionJob` (relation) - Links to batch job
 
@@ -291,6 +297,8 @@ const inProgressJobs = await db.batchDescriptionJob.findMany({
 ### POST /api/batch-descriptions/process
 **Purpose:** Parse completed jobs and save descriptions to ReferenceMural (MANUAL trigger)
 
+**UPDATED:** Now uses `processCompletedJobsUnified()` which validates against unified schema (`unifiedArtisticPromptSchema`)
+
 **Request:** None (empty body)
 
 **Response (success):**
@@ -310,15 +318,21 @@ const inProgressJobs = await db.batchDescriptionJob.findMany({
   "failed": 50,
   "errors": [
     "Failed to parse description for mural abc-123: Invalid JSON",
-    "Zod validation failed for mural def-456: Missing field 'text_message'"
+    "Zod validation failed for mural def-456: Missing field 'conversationalResponse'"
   ]
 }
 ```
+
+**Schema Validation:**
+- Expects: `conversationalResponse` (string), `artisticPrompt` (object), `changesSummary` (array)
+- Legacy format with `text_message` and `json_prompt` will fail validation (use legacy endpoint if needed)
 
 ---
 
 ### POST /api/batch-descriptions/test-one
 **Purpose:** Test endpoint - create batch job for just 1 mural (for debugging)
+
+**UPDATED:** Now uses `createBatchJobForMuralUnified()` which generates unified schema format
 
 **Request:** None
 
@@ -332,6 +346,8 @@ const inProgressJobs = await db.batchDescriptionJob.findMany({
   "batchJobId": "batches/xyz789..."
 }
 ```
+
+**Schema Used:** `unifiedArtisticPromptSchema` - returns `conversationalResponse`, `artisticPrompt`, and `changesSummary` (empty array for initial analysis)
 
 ---
 
@@ -368,10 +384,72 @@ const inProgressJobs = await db.batchDescriptionJob.findMany({
 **Note:** Hardcoded job IDs at `check-orphaned/route.ts:16-19` - update if checking different orphaned jobs
 </api_reference>
 
+<unified_schema_details>
+## UNIFIED SCHEMA IMPLEMENTATION
+
+### What Changed (2025-12-25)
+
+**Before:** Two separate schemas
+- `artisticDescriptionSchema` - Used for batch descriptions (had `text_message` + `json_prompt`)
+- `chatRefinementSchema` - Used for chat refinement (had `conversationalResponse` + `refinedPrompt` string)
+
+**After:** Single unified schema
+- `unifiedArtisticPromptSchema` - Used for BOTH batch descriptions and chat refinement
+- Structure:
+  ```typescript
+  {
+    conversationalResponse: string,    // Artistic summary OR change explanation
+    artisticPrompt: {                  // Structured analysis (same as old json_prompt)
+      meta_tags: { style_category, seamless_potential, perspective_type },
+      artistic_reference: { art_movement, influential_artists, era },
+      medium_and_texture: { primary_medium, background_substrate, brushwork_style },
+      visual_composition: { subject_matter, structural_layout, key_elements },
+      color_profile: { dominant_palette, mood, lighting }
+    },
+    changesSummary: string[]           // List of changes (empty for initial analysis)
+  }
+  ```
+
+### Migration Notes
+
+**Backward compatibility:**
+- Legacy endpoints (`createBatchJobForMural`, `processCompletedJobs`) still exist but are deprecated
+- New endpoints use unified schema exclusively
+- Old database records with `text_message` format will NOT validate with new schema
+- Frontend must check schema version when displaying descriptions
+
+**System instructions updated:**
+- [UNIFIED_ARTISTIC_DESCRIPTION_SYSTEM_INSTRUCTION](../../../lib/features/mural-generator/prompts.ts#L180-L203) - For batch analysis
+- [UNIFIED_CHAT_REFINEMENT_SYSTEM_INSTRUCTION](../../../lib/features/mural-generator/prompts.ts#L107-L137) - For chat refinement
+- [JSON_TO_NARRATIVE_SYSTEM_INSTRUCTION](../../../lib/features/mural-generator/prompts.ts#L142-L165) - For converting JSON to narrative prompts
+
+### Data Flow
+
+```
+Reference Image → createBatchJobForMuralUnified() → Gemini Batch API
+                                                          ↓
+                            Gemini returns unified JSON (conversationalResponse + artisticPrompt + changesSummary)
+                                                          ↓
+                            processCompletedJobsUnified() validates with Zod
+                                                          ↓
+                            Store in ReferenceMural.artisticDescription
+                                                          ↓
+                  User refines via chat → refinePromptWithChatUnified() → Updated JSON
+                                                          ↓
+                            convertJsonToNarrativePrompt() → Narrative text
+                                                          ↓
+                                    generateMural() → Final image
+```
+</unified_schema_details>
+
 <references>
 ## REFERENCES
 
 - **Business logic:** [lib/features/mural-generator/batch-descriptions.ts](../../../lib/features/mural-generator/batch-descriptions.ts) - Core batch job functions
+  - **NEW:** `createBatchJobForMuralUnified()` (lines 392-479)
+  - **NEW:** `processCompletedJobsUnified()` (lines 573-659)
+- **Unified schema:** [lib/features/mural-generator/prompts.ts](../../../lib/features/mural-generator/prompts.ts#L183-L213) - `unifiedArtisticPromptSchema`
+- **Type definitions:** [lib/features/mural-generator/types.ts](../../../lib/features/mural-generator/types.ts#L85-L115) - `UnifiedArtisticPromptInterface`
 - **API patterns:** [../import/route.ts](../import/route.ts) - Similar endpoint structure
 - **Database schema:** [prisma/schema.prisma](../../../prisma/schema.prisma) - BatchDescriptionJob model
 - **Planning docs:** [discussions/artistic-descriptions/](../../../discussions/artistic-descriptions/)

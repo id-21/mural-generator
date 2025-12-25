@@ -1,5 +1,7 @@
 <system_context>
 Next.js 13+ App Router frontend for the mural generator application. Provides user interface for importing reference murals, browsing collections, generating AI murals with chat-based prompt refinement, and viewing generated results in an immersive gallery. Technical backend details in [api/CLAUDE.md](api/CLAUDE.md) and [../lib/features/mural-generator/CLAUDE.md](../lib/features/mural-generator/CLAUDE.md).
+
+**IMPORTANT (2025-12-25):** Generate page currently uses legacy prompt refinement flow. Backend has been updated to support unified JSON schema (`unifiedArtisticPromptSchema`), but frontend UI updates are pending. See [api/CLAUDE.md](api/CLAUDE.md) for backend implementation details.
 </system_context>
 
 <file_map>
@@ -50,13 +52,19 @@ Two modal types in generate page:
 ## INTERACTIVE FEATURES
 
 ### AI Chat Refinement (Generate Page)
-Conversational prompt refinement with visual feedback ([generate/page.tsx:99-154](generate/page.tsx#L99-L154)):
+**CURRENT (Legacy):** Conversational prompt refinement with visual feedback ([generate/page.tsx:99-154](generate/page.tsx#L99-L154)):
 - Click "AI Analyze Prompt" → Opens chat modal with initial analysis
 - Chat history shows reference image in first message ([generate/page.tsx:558-566](generate/page.tsx#L558-L566))
 - User can request changes: "make it more colorful", "add tropical plants"
-- Right sidebar shows live prompt preview + changes summary
+- Right sidebar shows live prompt preview (narrative text) + changes summary
 - Press Enter to send message
 - "Apply Refined Prompt" button closes modal and applies changes
+
+**PLANNED (Unified Schema):** Future update will display structured JSON instead of narrative text
+- Right sidebar will show structured artistic prompt in accordion format (meta_tags, artistic_reference, etc.)
+- Changes summary displayed as badges/pills
+- Backend already supports unified schema via `useUnifiedSchema` flag
+- See [api/batch-descriptions/CLAUDE.md](api/batch-descriptions/CLAUDE.md#unified_schema_details) for schema structure
 
 ### Generation Workflow
 1. Select reference mural (from browse page or URL)
@@ -161,6 +169,11 @@ async function loadData() {
 - **No authentication** - App assumes trusted local environment (add auth for production)
 - **Image serving via API** - Local files served through `/api/image?id=X`, not public folder
 - **Keyboard nav conflicts** - Gallery disables arrow keys when input/textarea focused ([gallery/page.tsx:61-62](gallery/page.tsx#L61-L62))
+- **Frontend/Backend schema mismatch (2025-12-25)** - Generate page uses legacy schema; backend supports unified schema
+  - Current: Frontend sends/receives narrative text prompts
+  - Backend ready: Accepts `artisticPromptJson` object with `useUnifiedSchema` flag
+  - Migration needed: Update generate/page.tsx state and UI to use structured JSON
+  - See [api/CLAUDE.md](api/CLAUDE.md) for backend unified schema implementation
 </critical_notes>
 
 <technical_integration>
@@ -171,17 +184,21 @@ async function loadData() {
 - `POST /api/import` - Trigger mural import
 - `GET /api/reference-murals` - List all references (browse)
 - `GET /api/generated-murals?referenceMuralId=X&limit=N` - Previously generated
-- `POST /api/generate-mural` - Create new mural
-- `POST /api/chat-refine-prompt` - AI conversation refinement
+- `POST /api/generate-mural` - Create new mural (supports both legacy `prompt` and new `artisticPromptJson` formats)
+- `POST /api/chat-refine-prompt` - AI conversation refinement (supports unified schema via `useUnifiedSchema` flag)
 - `GET /api/image?id=X` - Serve image files
 
-See [api/CLAUDE.md](api/CLAUDE.md) for endpoint details.
+**Note:** Generate page currently uses legacy format. Backend supports unified schema but frontend needs updating.
+
+See [api/CLAUDE.md](api/CLAUDE.md) for endpoint details and unified schema documentation.
 
 ### Business Logic Integration
-Pages consume functions from `@/lib/features/mural-generator/`:
-- `generateMural()` - Called via API route
-- `refinePromptWithChat()` - Chat refinement backend
-- `importReferenceMurals()` - Import workflow
+Pages consume functions from `@/lib/features/mural-generator/` (via API routes):
+- `generateMural()` - Image generation (unchanged)
+- **LEGACY:** `refinePromptWithChat()` - Chat refinement (currently used by frontend)
+- **NEW:** `refinePromptWithChatUnified()` - Unified schema chat refinement (backend ready)
+- **NEW:** `convertJsonToNarrativePrompt()` - Converts structured JSON to narrative (backend ready)
+- `importReferenceMurals()` - Import workflow (unchanged)
 
 See [../lib/features/mural-generator/CLAUDE.md](../lib/features/mural-generator/CLAUDE.md) for implementation details.
 </technical_integration>

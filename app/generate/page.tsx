@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { UnifiedArtisticPromptInterface } from '@/lib/features/mural-generator/types';
 
 interface ReferenceMural {
   id: string;
@@ -28,7 +29,8 @@ export default function GeneratePage() {
   const muralIdFromUrl = searchParams.get('mural');
 
   const [selectedMural, setSelectedMural] = useState<ReferenceMural | null>(null);
-  const [prompt, setPrompt] = useState<string>('');
+  const [artisticPromptJson, setArtisticPromptJson] = useState<UnifiedArtisticPromptInterface | null>(null);
+  const [narrativePrompt, setNarrativePrompt] = useState<string>('');
   const [isCustomPrompt, setIsCustomPrompt] = useState<boolean>(false);
   const [analyzing, setAnalyzing] = useState<boolean>(false);
   const [generating, setGenerating] = useState<boolean>(false);
@@ -113,13 +115,14 @@ export default function GeneratePage() {
         body: JSON.stringify({
           referenceMuralId: selectedMural.id,
           chatHistory: [],  // Empty for initial analysis
+          useUnifiedSchema: true  // Use unified schema
         }),
       });
 
       const data = await res.json();
       if (data.success) {
-        // Set the prompt
-        setPrompt(data.refinedPrompt);
+        // Set the artistic prompt JSON
+        setArtisticPromptJson(data.artisticPromptJson);
 
         // Attach image ID to first user message in chat history
         const historyWithImage = data.initialChatHistory.map((msg: any, idx: number) =>
@@ -154,7 +157,7 @@ export default function GeneratePage() {
   }
 
   async function handleGenerate() {
-    if (!selectedMural || !prompt) return;
+    if (!selectedMural || (!artisticPromptJson && !narrativePrompt)) return;
 
     setGenerating(true);
     setGeneratedImage(null);
@@ -166,7 +169,7 @@ export default function GeneratePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           referenceMuralId: selectedMural.id,
-          prompt,
+          ...(artisticPromptJson ? { artisticPromptJson } : { prompt: narrativePrompt }),
           isCustomPrompt,
         }),
       });
@@ -205,7 +208,7 @@ export default function GeneratePage() {
 
   // Initialize chat when modal opens (if not already initialized)
   useEffect(() => {
-    if (showChatModal && chatHistory.length === 0 && prompt) {
+    if (showChatModal && chatHistory.length === 0 && artisticPromptJson) {
       // Fallback: If somehow chat wasn't initialized during analysis, initialize now
       setChatHistory([
         {
@@ -213,14 +216,14 @@ export default function GeneratePage() {
           parts: [{
             text: JSON.stringify({
               conversationalResponse: "Hi! I can help you refine your mural generation prompt. What changes would you like to make? For example, you could ask me to make it more colorful, add specific elements, change the artistic style, or adjust any other aspect.",
-              refinedPrompt: prompt,
+              artisticPrompt: artisticPromptJson,
               changesSummary: []
             })
           }]
         }
       ]);
     }
-  }, [showChatModal, prompt, chatHistory.length]);
+  }, [showChatModal, artisticPromptJson, chatHistory.length]);
 
   async function handleChatSend() {
     if (!chatInput.trim()) return;
@@ -243,7 +246,8 @@ export default function GeneratePage() {
         body: JSON.stringify({
           chatHistory: [...chatHistory, newUserMsg],
           userMessage,
-          currentPrompt: prompt  // Pass current prompt
+          currentArtisticPrompt: artisticPromptJson?.artisticPrompt,  // Pass current artistic prompt JSON
+          useUnifiedSchema: true
         }),
       });
 
@@ -252,7 +256,7 @@ export default function GeneratePage() {
         // Store the full JSON response from AI
         const aiResponse = {
           conversationalResponse: data.conversationalResponse,
-          refinedPrompt: data.refinedPrompt,
+          artisticPrompt: data.artisticPromptJson,
           changesSummary: data.changesSummary,
         };
 
@@ -262,8 +266,8 @@ export default function GeneratePage() {
           parts: [{ text: JSON.stringify(aiResponse) }]
         }]);
 
-        // Update prompt with refined version
-        setPrompt(data.refinedPrompt);
+        // Update artistic prompt JSON
+        setArtisticPromptJson(data.artisticPromptJson);
       } else {
         setNotification({
           type: 'error',
@@ -377,7 +381,8 @@ export default function GeneratePage() {
               </button>
               <button
                 onClick={() => {
-                  setPrompt('');
+                  setNarrativePrompt('');
+                  setArtisticPromptJson(null);
                   setIsCustomPrompt(true);
                 }}
                 className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
@@ -389,19 +394,20 @@ export default function GeneratePage() {
             <div>
               <label className="block text-sm font-medium mb-2">Generation Prompt</label>
               <textarea
-                value={prompt}
+                value={isCustomPrompt ? narrativePrompt : "Using AI-generated structured prompt (view in chat modal)"}
                 onChange={(e) => {
-                  setPrompt(e.target.value);
+                  setNarrativePrompt(e.target.value);
                   setIsCustomPrompt(true);
                 }}
+                disabled={!isCustomPrompt}
                 rows={16}
                 placeholder="Click 'AI Analyze Prompt' to get a suggested prompt, or write your own..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm resize-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm resize-none disabled:bg-gray-100 disabled:text-gray-600"
               />
               <p className="text-xs text-gray-500 mt-1">
-                {isCustomPrompt ? '✏️ Custom prompt' : '🤖 AI-suggested prompt (editable)'}
+                {isCustomPrompt ? '✏️ Custom prompt' : '🤖 AI-suggested structured prompt'}
               </p>
-              {prompt && !isCustomPrompt && (
+              {artisticPromptJson && !isCustomPrompt && (
                 <button
                   onClick={() => setShowChatModal(true)}
                   className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
@@ -413,7 +419,7 @@ export default function GeneratePage() {
 
             <button
               onClick={handleGenerate}
-              disabled={generating || !prompt}
+              disabled={generating || (!artisticPromptJson && !narrativePrompt)}
               className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-semibold transition"
             >
               {generating ? 'Generating Mural...' : 'Generate Mural'}
@@ -590,17 +596,60 @@ export default function GeneratePage() {
                 )}
               </div>
 
-              {/* Right Column: Prompt Preview + Changes Summary (1/3 width) */}
+              {/* Right Column: JSON Accordion + Changes Summary (1/3 width) */}
               <div className="col-span-1 flex flex-col bg-gray-50 overflow-hidden">
-                {/* Prompt Preview (top section) */}
+                {/* JSON Accordion Display (top 65%) */}
                 <div className="h-[65%] overflow-y-auto p-4 border-b border-gray-300">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Refined Prompt Preview</h3>
-                  <pre className="text-xs font-mono text-gray-800 whitespace-pre-wrap break-words">
-                    {prompt || 'No prompt yet...'}
-                  </pre>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Artistic Prompt</h3>
+
+                  {artisticPromptJson ? (
+                    <div className="space-y-2">
+                      {/* Meta Tags Section */}
+                      <details className="bg-white p-2 rounded border border-gray-200">
+                        <summary className="font-medium text-xs cursor-pointer">Meta Tags</summary>
+                        <pre className="text-xs mt-2 text-gray-700 whitespace-pre-wrap">
+                          {JSON.stringify(artisticPromptJson.artisticPrompt.meta_tags, null, 2)}
+                        </pre>
+                      </details>
+
+                      {/* Artistic Reference Section */}
+                      <details className="bg-white p-2 rounded border border-gray-200">
+                        <summary className="font-medium text-xs cursor-pointer">Artistic Reference</summary>
+                        <pre className="text-xs mt-2 text-gray-700 whitespace-pre-wrap">
+                          {JSON.stringify(artisticPromptJson.artisticPrompt.artistic_reference, null, 2)}
+                        </pre>
+                      </details>
+
+                      {/* Medium & Texture Section */}
+                      <details className="bg-white p-2 rounded border border-gray-200">
+                        <summary className="font-medium text-xs cursor-pointer">Medium & Texture</summary>
+                        <pre className="text-xs mt-2 text-gray-700 whitespace-pre-wrap">
+                          {JSON.stringify(artisticPromptJson.artisticPrompt.medium_and_texture, null, 2)}
+                        </pre>
+                      </details>
+
+                      {/* Visual Composition Section */}
+                      <details className="bg-white p-2 rounded border border-gray-200">
+                        <summary className="font-medium text-xs cursor-pointer">Visual Composition</summary>
+                        <pre className="text-xs mt-2 text-gray-700 whitespace-pre-wrap">
+                          {JSON.stringify(artisticPromptJson.artisticPrompt.visual_composition, null, 2)}
+                        </pre>
+                      </details>
+
+                      {/* Color Profile Section */}
+                      <details className="bg-white p-2 rounded border border-gray-200">
+                        <summary className="font-medium text-xs cursor-pointer">Color Profile</summary>
+                        <pre className="text-xs mt-2 text-gray-700 whitespace-pre-wrap">
+                          {JSON.stringify(artisticPromptJson.artisticPrompt.color_profile, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No artistic prompt generated yet</p>
+                  )}
                 </div>
 
-                {/* Changes Summary (bottom section) */}
+                {/* Changes Summary (bottom 35%) */}
                 <div className="h-[35%] overflow-y-auto p-3 bg-blue-50">
                   <h3 className="text-xs font-medium text-gray-700 mb-2">Latest Changes</h3>
                   {(() => {
@@ -617,11 +666,13 @@ export default function GeneratePage() {
                       .reverse()[0]?.changesSummary || [];
 
                     return latestChanges.length > 0 ? (
-                      <ul className="text-xs text-gray-700 list-disc list-inside space-y-1">
+                      <div className="flex flex-wrap gap-2">
                         {latestChanges.map((change: string, i: number) => (
-                          <li key={i}>{change}</li>
+                          <span key={i} className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
+                            {change}
+                          </span>
                         ))}
-                      </ul>
+                      </div>
                     ) : (
                       <p className="text-xs text-gray-500 italic">No changes yet</p>
                     );

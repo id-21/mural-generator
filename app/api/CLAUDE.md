@@ -1,5 +1,7 @@
 <system_context>
 Next.js 13+ App Router API routes for the mural generator application. Provides REST endpoints for importing reference murals, generating new murals via Gemini AI, chat-based prompt refinement, and serving/listing mural images from local filesystem.
+
+**UPDATED (2025-12-25):** Chat refinement and generation APIs now support unified JSON schema (`unifiedArtisticPromptSchema`) for structured artistic prompts. See child CLAUDE.md files for detailed implementation.
 </system_context>
 
 <file_map>
@@ -71,6 +73,10 @@ Example: [image/route.ts:56-62](image/route.ts#L56-L62)
 - **Business logic separation** - Routes are thin wrappers; heavy logic lives in `@/lib/features/mural-generator/`
 - **No authentication** - All routes currently public (add auth middleware if deploying)
 - **Image caching** - `/api/image` sets 1-year cache headers for immutable images ([image/route.ts:53](image/route.ts#L53))
+- **Unified schema (NEW 2025-12-25)** - Chat refinement, batch descriptions, and generation now use `unifiedArtisticPromptSchema` for structured artistic prompts
+  - Legacy endpoints still functional but deprecated
+  - Backward compatibility maintained for existing database records
+  - See [batch-descriptions/CLAUDE.md](batch-descriptions/CLAUDE.md#unified_schema_details) for complete schema documentation
 </critical_notes>
 
 <endpoints_summary>
@@ -83,15 +89,16 @@ Example: [image/route.ts:56-62](image/route.ts#L56-L62)
 - `GET /api/generated-murals?referenceMuralId=X&limit=N` - List generated murals
 
 **Generation:**
-- `POST /api/generate-mural` - Generate new mural (see child CLAUDE.md)
-- `POST /api/chat-refine-prompt` - Chat-based prompt refinement
+- `POST /api/generate-mural` - Generate new mural; supports both legacy (`prompt` string) and unified (`artisticPromptJson` object) formats (see [generate-mural/CLAUDE.md](generate-mural/CLAUDE.md))
+- `POST /api/chat-refine-prompt` - Chat-based prompt refinement; supports unified schema with `useUnifiedSchema` flag
 
 **Batch Descriptions (Gemini Batch API):**
-- `POST /api/batch-descriptions/start` - Create batch jobs for all murals without descriptions
+- `POST /api/batch-descriptions/start` - Create batch jobs for all murals without descriptions (uses unified schema)
 - `GET /api/batch-descriptions/poll` - Poll pending/running batch jobs and update status
-- `POST /api/batch-descriptions/process` - Parse completed jobs and save descriptions (manual trigger)
-- `POST /api/batch-descriptions/test-one` - Test endpoint - create batch job for 1 mural
+- `POST /api/batch-descriptions/process` - Parse completed jobs using unified schema and save descriptions (manual trigger)
+- `POST /api/batch-descriptions/test-one` - Test endpoint - create batch job for 1 mural (uses unified schema)
 - `GET /api/batch-descriptions/check-orphaned` - Debug endpoint - check orphaned Gemini batch jobs
+- See [batch-descriptions/CLAUDE.md](batch-descriptions/CLAUDE.md) for detailed unified schema documentation
 
 **Serving:**
 - `GET /api/image?id={muralId}` - Serve image file from filesystem
